@@ -6,12 +6,8 @@ import (
 	"readmecheck/components/card"
 	"readmecheck/components/icon"
 	"readmecheck/components/input"
+	switchcomp "readmecheck/components/switch"
 )
-
-type HomeData struct {
-	Title string
-	URL   string
-}
 
 templ Home(data HomeData) {
 	@Layout(LayoutData{Title: data.Title, Active: "home"}) {
@@ -34,7 +30,16 @@ templ Home(data HomeData) {
 				<div class="mt-8 w-full max-w-2xl text-left">
 					@card.Card(card.Props{Class: "shadow-lg shadow-black/5"}) {
 						@card.Content(card.ContentProps{Class: "p-5 sm:p-6"}) {
-							<form action="/check" method="post" class="space-y-4">
+							<form
+								action="/check"
+								method="post"
+								class="space-y-4"
+								hx-post="/check"
+								hx-target="#results"
+								hx-swap="innerHTML"
+								hx-indicator="#check-loading"
+								hx-disabled-elt="find button[type='submit']"
+							>
 								<label for="repo-url" class="text-sm font-medium">GitHub repository</label>
 								<div class="flex flex-col gap-3 sm:flex-row">
 									<div class="flex-1">
@@ -54,18 +59,45 @@ templ Home(data HomeData) {
 										Check README
 									}
 								</div>
+
+								<div class="flex items-start justify-between gap-4 rounded-lg border bg-muted/30 p-3">
+									<div>
+										<label for="external-links" class="text-sm font-medium">Check external links</label>
+										<p class="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+											Verifies up to 50 links over the network. Slower, but catches dead references.
+										</p>
+									</div>
+									@switchcomp.Switch(switchcomp.Props{
+										ID:      "external-links",
+										Name:    "external",
+										Value:   "1",
+										Checked: data.ExternalLinks,
+									})
+								</div>
+
+								if data.Error != "" {
+									@ErrorAlert("Could not check this repository", data.Error)
+								}
+
 								<p class="text-xs leading-relaxed text-muted-foreground">
 									Accepts <code class="rounded bg-muted px-1 py-0.5">owner/repo</code>,
 									<code class="rounded bg-muted px-1 py-0.5">github.com/owner/repo</code>,
 									and full URLs. Public repositories work without a token.
 								</p>
+
+								<div id="check-loading" class="htmx-indicator items-center gap-2 text-sm text-muted-foreground" role="status">
+									@icon.LoaderCircle(icon.Props{Class: "size-4 animate-spin"})
+									<span>Fetching the repository and running 23 rules…</span>
+								</div>
 							</form>
 						}
 					}
 				</div>
 
+				<div id="results" class="mt-10 w-full max-w-5xl text-left" aria-live="polite"></div>
+
 				<div class="mt-10 grid w-full max-w-4xl gap-4 text-left sm:grid-cols-3">
-					@(featureCard("25 rules", "A documented checklist covering everything from installation instructions to broken links.", "list-checks"))
+					@(featureCard("23 rules", "A documented checklist covering everything from installation instructions to broken links.", "list-checks"))
 					@(featureCard("Real evidence", "Every result explains why it matters and what to change. Failed checks appear first.", "shield-check"))
 					@(featureCard("Private by default", "Your URLs are analyzed by this local server. No account, no LLM, no telemetry.", "code"))
 				</div>

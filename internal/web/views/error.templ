@@ -1,0 +1,26 @@
+package views
+
+import (
+	"readmecheck/components/alert"
+	"readmecheck/components/icon"
+)
+
+// ErrorAlert renders a consistent, accessible error message.
+templ ErrorAlert(title, message string) {
+	@alert.Alert(alert.Props{Variant: alert.VariantDestructive}) {
+		@icon.CircleAlert(icon.Props{Class: "size-4"})
+		@alert.Title() {
+			{ title }
+		}
+		@alert.Description() {
+			<p>{ message }</p>
+		}
+	}
+}
+
+// CheckError is the fragment returned to htmx when a check cannot be started.
+templ CheckError(message string) {
+	<div class="mt-6">
+		@ErrorAlert("Could not check this repository", message)
+	</div>
+}

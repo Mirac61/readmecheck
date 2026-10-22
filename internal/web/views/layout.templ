@@ -48,6 +48,23 @@ templ Layout(data LayoutData) {
 					const isDark = document.documentElement.classList.toggle("dark");
 					localStorage.setItem("readmecheck-theme", isDark ? "dark" : "light");
 				});
+
+				document.addEventListener("click", function (event) {
+					const button = event.target.closest("[data-download-report]");
+					if (!button) return;
+					const target = document.getElementById(button.dataset.targetId);
+					if (!target) return;
+					const markdown = target.value !== undefined ? target.value : target.textContent || "";
+					const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+					const url = URL.createObjectURL(blob);
+					const link = document.createElement("a");
+					link.href = url;
+					link.download = button.dataset.filename || "readmecheck-report.md";
+					document.body.appendChild(link);
+					link.click();
+					link.remove();
+					setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+				});
 			</script>
 		</body>
 	</html>

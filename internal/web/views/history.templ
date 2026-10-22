@@ -1,0 +1,177 @@
+package views
+
+import (
+	"readmecheck/components/badge"
+	"readmecheck/components/button"
+	"readmecheck/components/card"
+	"readmecheck/components/icon"
+	"readmecheck/components/table"
+)
+
+templ History(data HistoryData) {
+	@Layout(LayoutData{Title: "History", Active: "history"}) {
+		<div class="mx-auto max-w-6xl px-4 py-8 sm:py-10">
+			<div class="flex flex-wrap items-end justify-between gap-3">
+				<div>
+					<h1 class="text-2xl font-bold tracking-tight sm:text-3xl">Check history</h1>
+					<p class="mt-1 text-sm text-muted-foreground">The latest check for each repository, stored locally in SQLite.</p>
+				</div>
+				@button.Button(button.Props{Href: "/", Variant: button.VariantOutline, Size: button.SizeSm}) {
+					@icon.Search(icon.Props{Class: "size-4"})
+					New check
+				}
+			</div>
+
+			if data.Error != "" {
+				<div class="mt-5">
+					@ErrorAlert("History unavailable", data.Error)
+				</div>
+			} else if len(data.Checks) == 0 {
+				@emptyHistory()
+			} else {
+				@card.Card(card.Props{Class: "mt-6 hidden overflow-hidden md:block"}) {
+					<div class="overflow-x-auto">
+						@table.Table() {
+							@table.Header() {
+								@table.Row() {
+									@table.Head() { Repository }
+									@table.Head(headClass()) { Score }
+									@table.Head(headClass()) { Grade }
+									@table.Head(headClass()) { Checked }
+									@table.Head(headClass()) { Links }
+									@table.Head(headClass()) { "" }
+								}
+							}
+							@table.Body() {
+								for _, check := range data.Checks {
+									@historyRow(check)
+								}
+							}
+						}
+					</div>
+				}
+				<div class="mt-6 grid gap-3 md:hidden">
+					for _, check := range data.Checks {
+						@historyCard(check)
+					}
+				</div>
+			}
+		</div>
+	}
+}
+
+templ historyRow(check CheckSummary) {
+	@table.Row() {
+		@table.Cell() {
+			<a href={ templ.SafeURL(historyPath(check.Path, check.ExternalLinks)) } class="font-medium hover:underline">{ check.Repository }</a>
+			if check.Description != "" {
+				<p class="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{ check.Description }</p>
+			}
+		}
+		@table.Cell(cellClass()) {
+			<span class={ "font-semibold tabular-nums", scoreTextClass(check.Score) }>{ check.Score }</span>
+			<span class="text-xs text-muted-foreground">/100</span>
+		}
+		@table.Cell(cellClass()) {
+			@gradeBadge(check.Grade)
+		}
+		@table.Cell(cellClass()) {
+			<span class="text-xs text-muted-foreground">{ formatDate(check.CheckedAt) }</span>
+		}
+		@table.Cell(cellClass()) {
+			if check.ExternalLinks {
+				@badge.Badge(badge.Props{Variant: badge.VariantSecondary, Class: "text-[11px]"}) {
+					checked
+				}
+			} else {
+				@badge.Badge(badge.Props{Variant: badge.VariantOutline, Class: "text-[11px]"}) {
+					skipped
+				}
+			}
+		}
+		@table.Cell(cellClass()) {
+			@button.Button(button.Props{
+				Href:    historyPath(check.Path, check.ExternalLinks),
+				Variant: button.VariantGhost,
+				Size:    button.SizeSm,
+			}) {
+				@icon.RefreshCw(icon.Props{Class: "size-3.5"})
+				Re-run
+			}
+		}
+	}
+}
+
+templ historyCard(check CheckSummary) {
+	@card.Card() {
+		@card.Content(card.ContentProps{Class: "p-4"}) {
+			<div class="flex items-start justify-between gap-3">
+				<div class="min-w-0">
+					<a href={ templ.SafeURL(historyPath(check.Path, check.ExternalLinks)) } class="font-medium hover:underline">{ check.Repository }</a>
+					if check.Description != "" {
+						<p class="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{ check.Description }</p>
+					}
+				</div>
+				@gradeBadge(check.Grade)
+			</div>
+			<div class="mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+				<div class="flex items-center gap-2">
+					<span class={ "text-lg font-semibold tabular-nums", scoreTextClass(check.Score) }>{ check.Score }</span>
+					<span class="text-xs text-muted-foreground">/100</span>
+					if check.ExternalLinks {
+						@badge.Badge(badge.Props{Variant: badge.VariantOutline, Class: "text-[11px]"}) {
+							links
+						}
+					} else {
+						@badge.Badge(badge.Props{Variant: badge.VariantOutline, Class: "text-[11px]"}) {
+							no links
+						}
+					}
+				</div>
+				<div class="flex items-center gap-2">
+					<span class="text-[11px] text-muted-foreground">{ formatDate(check.CheckedAt) }</span>
+					@button.Button(button.Props{
+						Href:    historyPath(check.Path, check.ExternalLinks),
+						Variant: button.VariantOutline,
+						Size:    button.SizeSm,
+					}) {
+						@icon.RefreshCw(icon.Props{Class: "size-3.5"})
+						Re-run
+					}
+				</div>
+			</div>
+		}
+	}
+}
+
+templ gradeBadge(grade string) {
+	<span class={ "inline-flex size-8 items-center justify-center rounded-lg border text-sm font-bold", gradePanelClass(gradeScore(grade)) }>
+		{ grade }
+	</span>
+}
+
+templ emptyHistory() {
+	@card.Card(card.Props{Class: "mt-6"}) {
+		@card.Content(card.ContentProps{Class: "flex flex-col items-center px-6 py-14 text-center"}) {
+			<div class="flex size-12 items-center justify-center rounded-xl bg-secondary text-secondary-foreground">
+				@icon.Clock(icon.Props{Class: "size-6"})
+			</div>
+			<h2 class="mt-4 text-lg font-semibold">No checks yet</h2>
+			<p class="mt-1 max-w-md text-sm leading-relaxed text-muted-foreground">
+				Run your first audit and it will appear here. History is stored on this machine only.
+			</p>
+			@button.Button(button.Props{Href: "/", Class: "mt-5", Size: button.SizeSm}) {
+				@icon.Search(icon.Props{Class: "size-4"})
+				Check a README
+			}
+		}
+	}
+}
+
+func headClass() table.HeadProps {
+	return table.HeadProps{Class: "text-right"}
+}
+
+func cellClass() table.CellProps {
+	return table.CellProps{Class: "text-right"}
+}

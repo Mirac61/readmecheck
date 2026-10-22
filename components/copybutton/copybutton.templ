@@ -13,6 +13,7 @@ type Props struct {
 	Class    string           // Custom CSS classes
 	Attrs    templ.Attributes // Additional HTML attributes
 	TargetID string           // Required - ID of element to copy from
+	Label    string           // Optional visible button label
 }
 
 templ CopyButton(props Props) {
@@ -27,9 +28,9 @@ templ CopyButton(props Props) {
 	>
 		@button.Button(button.Props{
 			ID:         p.ID,
-			Class:      utils.TwMerge("h-7 w-7 text-muted-foreground hover:text-accent-foreground", p.Class),
+			Class:      utils.TwMerge("h-7 w-7 text-muted-foreground hover:text-accent-foreground", utils.If(p.Label != "", "h-9 w-auto px-3 gap-2"), p.Class),
 			Attributes: p.Attrs,
-			Size:       button.SizeIcon,
+			Size:       utils.IfElse(p.Label != "", button.SizeDefault, button.SizeIcon),
 			Variant:    button.VariantGhost,
 			Type:       button.TypeButton,
 		}) {
@@ -39,6 +40,9 @@ templ CopyButton(props Props) {
 			<span data-copy-icon-check class="hidden">
 				@icon.Check(icon.Props{Class: "size-4"})
 			</span>
+			if p.Label != "" {
+				<span>{ p.Label }</span>
+			}
 		}
 	</div>
 }

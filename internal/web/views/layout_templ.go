@@ -95,7 +95,7 @@ func Layout(data LayoutData) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<script>\n\t\t\t\tdocument.addEventListener(\"click\", function (event) {\n\t\t\t\t\tconst toggle = event.target.closest(\"[data-theme-toggle]\");\n\t\t\t\t\tif (!toggle) return;\n\t\t\t\t\tconst isDark = document.documentElement.classList.toggle(\"dark\");\n\t\t\t\t\tlocalStorage.setItem(\"readmecheck-theme\", isDark ? \"dark\" : \"light\");\n\t\t\t\t});\n\t\t\t</script></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<script>\n\t\t\t\tdocument.addEventListener(\"click\", function (event) {\n\t\t\t\t\tconst toggle = event.target.closest(\"[data-theme-toggle]\");\n\t\t\t\t\tif (!toggle) return;\n\t\t\t\t\tconst isDark = document.documentElement.classList.toggle(\"dark\");\n\t\t\t\t\tlocalStorage.setItem(\"readmecheck-theme\", isDark ? \"dark\" : \"light\");\n\t\t\t\t});\n\n\t\t\t\tdocument.addEventListener(\"click\", function (event) {\n\t\t\t\t\tconst button = event.target.closest(\"[data-download-report]\");\n\t\t\t\t\tif (!button) return;\n\t\t\t\t\tconst target = document.getElementById(button.dataset.targetId);\n\t\t\t\t\tif (!target) return;\n\t\t\t\t\tconst markdown = target.value !== undefined ? target.value : target.textContent || \"\";\n\t\t\t\t\tconst blob = new Blob([markdown], { type: \"text/markdown;charset=utf-8\" });\n\t\t\t\t\tconst url = URL.createObjectURL(blob);\n\t\t\t\t\tconst link = document.createElement(\"a\");\n\t\t\t\t\tlink.href = url;\n\t\t\t\t\tlink.download = button.dataset.filename || \"readmecheck-report.md\";\n\t\t\t\t\tdocument.body.appendChild(link);\n\t\t\t\t\tlink.click();\n\t\t\t\t\tlink.remove();\n\t\t\t\t\tsetTimeout(function () { URL.revokeObjectURL(url); }, 1000);\n\t\t\t\t});\n\t\t\t</script></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -211,7 +211,7 @@ func navLink(href, label string, active bool) templ.Component {
 		var templ_7745c5c3_Var7 templ.SafeURL
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(href))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/layout.templ`, Line: 79, Col: 28}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/layout.templ`, Line: 96, Col: 28}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -237,7 +237,7 @@ func navLink(href, label string, active bool) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/layout.templ`, Line: 81, Col: 9}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/layout.templ`, Line: 98, Col: 9}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {

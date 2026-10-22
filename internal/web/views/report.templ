@@ -1,0 +1,329 @@
+package views
+
+import (
+	"readmecheck/components/badge"
+	"readmecheck/components/button"
+	"readmecheck/components/card"
+	"readmecheck/components/copybutton"
+	"readmecheck/components/icon"
+	"readmecheck/components/progress"
+	"readmecheck/internal/rules"
+)
+
+// ReportPage is the full-page report used for direct links and re-runs.
+templ ReportPage(data ReportData) {
+	@Layout(LayoutData{Title: reportTitle(data.Report), Active: "home"}) {
+		<div class="mx-auto max-w-6xl px-4 py-8 sm:py-10">
+			<div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+				@button.Button(button.Props{Href: "/", Variant: button.VariantGhost, Size: button.SizeSm, Class: "-ml-2"}) {
+					@icon.ArrowLeft(icon.Props{Class: "size-4"})
+					Check another repository
+				}
+				<p class="text-xs text-muted-foreground">
+					Audited { formatDate(data.Report.GeneratedAt) }
+				</p>
+			</div>
+			@reportContent(data)
+		</div>
+	}
+}
+
+// ReportResult is the htmx fragment swapped in below the check form.
+templ ReportResult(data ReportData) {
+	@reportContent(data)
+}
+
+templ reportContent(data ReportData) {
+	<div id="report" class="space-y-6">
+		@reportHeader(data)
+		<div class="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+			@scoreCard(data)
+			@categoryCard(data)
+		</div>
+		@checklist(data)
+		@exportCard(data)
+	</div>
+}
+
+templ reportHeader(data ReportData) {
+	<section class="rounded-xl border bg-card p-5 shadow-xs sm:p-6">
+		<div class="flex flex-col gap-4 sm:flex-row sm:items-start">
+			<div class="flex size-11 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
+				@icon.Github(icon.Props{Class: "size-6"})
+			</div>
+			<div class="min-w-0 flex-1">
+				<div class="flex flex-wrap items-center gap-2">
+					<h1 class="text-2xl font-bold tracking-tight sm:text-3xl">{ repositoryName(data.Report) }</h1>
+					<a
+						href={ templ.SafeURL(repositoryURL(data.Report)) }
+						target="_blank"
+						rel="noopener noreferrer"
+						class="inline-flex items-center gap-1 rounded-md text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+					>
+						@icon.ExternalLink(icon.Props{Class: "size-3.5"})
+						<span class="sr-only">Open repository on GitHub</span>
+					</a>
+				</div>
+				if data.Report.Repository != nil && data.Report.Repository.Description != "" {
+					<p class="mt-1.5 max-w-3xl text-sm leading-relaxed text-muted-foreground">{ data.Report.Repository.Description }</p>
+				}
+				<div class="mt-3 flex flex-wrap items-center gap-1.5">
+					if data.Report.Repository != nil {
+						@badge.Badge(badge.Props{Variant: badge.VariantOutline, Class: "gap-1"}) {
+							@icon.Star(icon.Props{Class: "size-3"})
+							{ formatStars(data.Report.Repository.Stars) } stars
+						}
+						if data.Report.Repository.License != nil {
+							@badge.Badge(badge.Props{Variant: badge.VariantOutline}) {
+								@icon.Scale(icon.Props{Class: "size-3"})
+								{ data.Report.Repository.License.Name }
+							}
+						}
+						if data.Report.Repository.LatestRelease != nil && data.Report.Repository.LatestRelease.TagName != "" {
+							@badge.Badge(badge.Props{Variant: badge.VariantOutline, Class: "gap-1"}) {
+								@icon.Tag(icon.Props{Class: "size-3"})
+								{ data.Report.Repository.LatestRelease.TagName }
+							}
+						}
+						if data.Report.Repository.Archived {
+							@badge.Badge(badge.Props{Variant: badge.VariantDestructive}) {
+								Archived
+							}
+						}
+					}
+					@badge.Badge(badge.Props{Variant: badge.VariantSecondary, Class: "gap-1"}) {
+						if data.Report.ExternalLinksChecked {
+							@icon.Link2(icon.Props{Class: "size-3"})
+							<span>External links checked</span>
+						} else {
+							@icon.Link2(icon.Props{Class: "size-3"})
+							<span>External links not checked</span>
+						}
+					}
+				</div>
+			</div>
+		</div>
+	</section>
+}
+
+templ scoreCard(data ReportData) {
+	@card.Card(card.Props{Class: "h-full"}) {
+		@card.Content(card.ContentProps{Class: "flex h-full flex-col p-5 sm:p-6"}) {
+			<div class="flex items-start gap-4">
+				<div class={ "flex size-20 shrink-0 flex-col items-center justify-center rounded-2xl border", gradePanelClass(data.Report.Score) }>
+					<span class={ "text-4xl font-black leading-none", scoreTextClass(data.Report.Score) }>{ data.Report.Grade }</span>
+					<span class="mt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">grade</span>
+				</div>
+				<div class="min-w-0">
+					<p class="text-sm font-medium text-muted-foreground">Overall score</p>
+					<p class="mt-0.5 flex items-baseline gap-1">
+						<span class={ "text-4xl font-bold tabular-nums tracking-tight", scoreTextClass(data.Report.Score) }>{ data.Report.Score }</span>
+						<span class="text-sm text-muted-foreground">/ 100</span>
+					</p>
+					<p class="mt-2 text-sm leading-relaxed text-muted-foreground">{ gradeDescription(data.Report.Grade) }</p>
+				</div>
+			</div>
+
+			<div class="mt-5 grid grid-cols-3 gap-2 border-t pt-4 text-center">
+				<div class="rounded-lg bg-emerald-500/[0.07] px-2 py-2.5">
+					<p class="text-xl font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">{ data.Report.Counts.Passed }</p>
+					<p class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Passed</p>
+				</div>
+				<div class="rounded-lg bg-destructive/[0.07] px-2 py-2.5">
+					<p class="text-xl font-semibold tabular-nums text-destructive">{ data.Report.Counts.Failed }</p>
+					<p class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Failed</p>
+				</div>
+				<div class="rounded-lg bg-muted px-2 py-2.5">
+					<p class="text-xl font-semibold tabular-nums text-muted-foreground">{ data.Report.Counts.Skipped }</p>
+					<p class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Skipped</p>
+				</div>
+			</div>
+
+			if failedErrorCount(data.Report) > 0 {
+				<div class="mt-4 flex items-start gap-2 rounded-lg border border-destructive/25 bg-destructive/[0.04] p-3 text-sm">
+					@icon.TriangleAlert(icon.Props{Class: "mt-0.5 size-4 shrink-0 text-destructive"})
+					<p>
+						<span class="font-medium">{ failedErrorCount(data.Report) } error-severity</span>
+						{ attentionText(failedErrorCount(data.Report)) }
+					</p>
+				</div>
+			}
+		}
+	}
+}
+
+templ categoryCard(data ReportData) {
+	@card.Card(card.Props{Class: "h-full"}) {
+		@card.Header(card.HeaderProps{Class: "p-5 pb-3 sm:p-6 sm:pb-3"}) {
+			@card.Title() {
+				Category scores
+			}
+			@card.Description() {
+				Skipped checks are excluded from the weighted score.
+			}
+		}
+		@card.Content(card.ContentProps{Class: "p-5 pt-3 sm:p-6 sm:pt-3"}) {
+			<div class="space-y-4">
+				for _, category := range data.Report.Categories {
+					<div>
+						<div class="flex items-baseline justify-between gap-3">
+							<span class="text-sm font-medium">{ category.Label }</span>
+							if category.Applicable {
+								<span class={ "text-sm font-semibold tabular-nums", scoreTextClass(category.Score) }>{ categoryScoreLabel(category) }<span class="font-normal text-muted-foreground">/100</span></span>
+							} else {
+								<span class="text-xs text-muted-foreground">n/a</span>
+							}
+						</div>
+						if category.Applicable {
+							@progress.Progress(progress.Props{
+								Max:     100,
+								Value:   category.Score,
+								Size:    progress.SizeSm,
+								Variant: progressVariant(category.Score),
+								Class:   "mt-1.5",
+							})
+						}
+						<p class="mt-1 text-[11px] text-muted-foreground">{ categoryCountsLabel(category) }</p>
+					</div>
+				}
+			</div>
+		}
+	}
+}
+
+templ checklist(data ReportData) {
+	<section aria-labelledby="checklist-heading">
+		<div class="mb-4 flex flex-wrap items-end justify-between gap-3">
+			<div>
+				<h2 id="checklist-heading" class="text-xl font-semibold tracking-tight sm:text-2xl">Checklist</h2>
+				<p class="mt-1 text-sm text-muted-foreground">Failed checks appear first. Expand any check for evidence, rationale, and a concrete fix.</p>
+			</div>
+			<div class="flex flex-wrap gap-1.5">
+				@badge.Badge(badge.Props{Variant: badge.VariantSecondary}) {
+					{ data.Report.Counts.Passed } passed
+				}
+				@badge.Badge(badge.Props{Variant: badge.VariantDestructive}) {
+					{ data.Report.Counts.Failed } failed
+				}
+				@badge.Badge(badge.Props{Variant: badge.VariantOutline}) {
+					{ data.Report.Counts.Skipped } skipped
+				}
+			</div>
+		</div>
+
+		<div class="space-y-7">
+			for _, category := range rules.Categories() {
+				if len(data.Report.ResultsFor(category)) > 0 {
+					<section>
+						<div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+							<h3 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{ rules.CategoryLabel(category) }</h3>
+							<span class="text-xs text-muted-foreground">{ categoryAnchorLabel(data, category) }</span>
+						</div>
+						<div class="space-y-2">
+							for _, result := range data.Report.ResultsFor(category) {
+								@resultRow(result)
+							}
+						</div>
+					</section>
+				}
+			}
+		</div>
+	</section>
+}
+
+templ resultRow(result rules.Result) {
+	<details class={ "group rounded-lg border bg-card shadow-xs transition-colors", statusItemClass(result.Status) }>
+		<summary class="flex cursor-pointer list-none items-start gap-3 p-4 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
+			<span class="mt-0.5 shrink-0">
+				@resultStatusIcon(result)
+			</span>
+			<div class="min-w-0 flex-1">
+				<div class="flex flex-wrap items-center gap-2">
+					<span class="text-sm font-medium">{ result.Rule.Title }</span>
+					<span class={ "rounded-full px-2 py-0.5 text-[11px] font-medium", statusPillClass(result.Status) }>{ statusLabel(result.Status) }</span>
+					@badge.Badge(badge.Props{Variant: badge.VariantOutline, Class: severityClass(result.EffectiveSeverity())}) {
+						{ severityLabel(result.EffectiveSeverity()) }
+					}
+				</div>
+				<p class="mt-1 text-xs text-muted-foreground">{ resultSubtitle(result) }</p>
+			</div>
+			@icon.ChevronDown(icon.Props{Class: "mt-1 size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-180"})
+		</summary>
+		<div class="border-t px-4 pb-4 pt-3">
+			<p class="text-sm leading-relaxed">{ checkStatusSummary(result) }</p>
+
+			if len(result.Evidence) > 0 {
+				<div class="mt-3 rounded-md bg-muted/50 p-3">
+					<p class="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Evidence</p>
+					<ul class="space-y-1">
+						for _, evidence := range result.Evidence {
+							<li class="break-words font-mono text-xs leading-relaxed text-muted-foreground">{ evidence }</li>
+						}
+					</ul>
+				</div>
+			}
+
+			if result.Status != rules.StatusPass {
+				<div class="mt-3 grid gap-2 sm:grid-cols-2">
+					<details class="group/why rounded-md border bg-background/60">
+						<summary class="flex cursor-pointer list-none items-center gap-2 p-3 text-xs font-medium outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
+							@icon.Lightbulb(icon.Props{Class: "size-3.5 text-amber-600 dark:text-amber-400"})
+							<span>Why it matters</span>
+							@icon.ChevronDown(icon.Props{Class: "ml-auto size-3.5 text-muted-foreground transition-transform group-open/why:rotate-180"})
+						</summary>
+						<p class="border-t px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">{ result.Rule.Why }</p>
+					</details>
+					<details class="group/fix rounded-md border bg-background/60">
+						<summary class="flex cursor-pointer list-none items-center gap-2 p-3 text-xs font-medium outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
+							@icon.Wrench(icon.Props{Class: "size-3.5 text-emerald-600 dark:text-emerald-400"})
+							<span>How to fix</span>
+							@icon.ChevronDown(icon.Props{Class: "ml-auto size-3.5 text-muted-foreground transition-transform group-open/fix:rotate-180"})
+						</summary>
+						<p class="border-t px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">{ result.Rule.Fix }</p>
+					</details>
+				</div>
+			}
+		</div>
+	</details>
+}
+
+templ resultStatusIcon(result rules.Result) {
+	if result.Status == rules.StatusPass {
+		@icon.CircleCheck(icon.Props{Class: statusIconClass(result.Status)})
+	} else if result.Status == rules.StatusFail {
+		@icon.CircleX(icon.Props{Class: statusIconClass(result.Status)})
+	} else {
+		@icon.CircleSlash(icon.Props{Class: statusIconClass(result.Status)})
+	}
+}
+
+templ exportCard(data ReportData) {
+	<div class="flex flex-col gap-4 rounded-xl border bg-card p-4 shadow-xs sm:flex-row sm:items-center sm:justify-between sm:p-5">
+		<div>
+			<h2 class="text-sm font-semibold">Take the report with you</h2>
+			<p class="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+				The Markdown export includes scores, statuses, evidence, rationale, and fixes.
+			</p>
+		</div>
+		<div class="flex flex-wrap items-center gap-2">
+			@copybutton.CopyButton(copybutton.Props{
+				TargetID: "report-markdown",
+				Label:    "Copy report as Markdown",
+				Class:    "border bg-background shadow-xs",
+			})
+			@button.Button(button.Props{
+				Variant: button.VariantOutline,
+				Type:    button.TypeButton,
+				Attributes: templ.Attributes{
+					"data-download-report": "true",
+					"data-target-id":       "report-markdown",
+					"data-filename":        data.Filename,
+				},
+			}) {
+				@icon.Download(icon.Props{Class: "size-4"})
+				Download .md
+			}
+		</div>
+	</div>
+	<textarea id="report-markdown" class="sr-only" readonly aria-hidden="true" tabindex="-1">{ data.Markdown }</textarea>
+}
