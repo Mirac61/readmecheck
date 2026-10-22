@@ -534,13 +534,16 @@ func (d Document) CIWorkflowReferences() []string {
 	seen := make(map[string]bool)
 	var references []string
 	collect := func(raw string) {
-		for _, reference := range githubWorkflowBadgePattern.FindAllString(raw, -1) {
-			reference = strings.TrimSuffix(reference, "/badge.svg")
-			reference = strings.TrimPrefix(reference, "https://github.com/")
-			reference = strings.TrimPrefix(reference, "http://github.com/")
-			if !seen[reference] {
-				seen[reference] = true
-				references = append(references, reference)
+		for _, pattern := range githubWorkflowBadgePatterns {
+			for _, match := range pattern.FindAllStringSubmatch(raw, -1) {
+				if len(match) < 4 {
+					continue
+				}
+				reference := match[1] + "/" + match[2] + "/.github/workflows/" + match[3]
+				if !seen[reference] {
+					seen[reference] = true
+					references = append(references, reference)
+				}
 			}
 		}
 	}
@@ -553,7 +556,11 @@ func (d Document) CIWorkflowReferences() []string {
 	return references
 }
 
-var githubWorkflowBadgePattern = regexp.MustCompile(`(?i)(?:https?://)?github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/(?:actions/workflows/[^\s")]+/badge\.svg|workflows/[^\s")]+/badge\.svg)`)
+var githubWorkflowBadgePatterns = []*regexp.Regexp{
+	regexp.MustCompile(`(?i)(?:https?://)?github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/actions/workflows/([^/\s")?#]+)/badge\.svg`),
+	regexp.MustCompile(`(?i)(?:https?://)?img\.shields\.io/github/(?:actions/)?workflow/status/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/([^/\s")?#]+)`),
+	regexp.MustCompile(`(?i)(?:https?://)?img\.shields\.io/github/actions/workflow/status/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/([^/\s")?#]+)`),
+}
 
 func (d Document) ExternalLinks() []Link {
 	seen := make(map[string]bool)

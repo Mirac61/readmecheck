@@ -61,7 +61,7 @@ func TestParseGoodDocument(t *testing.T) {
 	if got := doc.EmptySections(); len(got) != 0 {
 		t.Fatalf("EmptySections = %v", got)
 	}
-	if refs := doc.CIWorkflowReferences(); len(refs) != 1 || refs[0] != "owner/demo/actions/workflows/ci.yml" {
+	if refs := doc.CIWorkflowReferences(); len(refs) != 1 || refs[0] != "owner/demo/.github/workflows/ci.yml" {
 		t.Fatalf("CIWorkflowReferences = %#v", refs)
 	}
 	if doc.HasTOC() {
