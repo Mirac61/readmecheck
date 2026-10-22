@@ -121,4 +121,6 @@ No AI client, prompt, or implementation exists in this repository. The interface
 
 - Unit and handler tests use fixtures and injected fakes; the normal `go test ./...` run does not contact GitHub or any external link.
 - `go build ./...`, `go vet ./...`, and `go test ./...` are required before each commit.
-- The final manual smoke test is performed against a real public repository only after the automated suite passes.
+- The final manual smoke test was performed on 2026-10-22 with `make run` on `http://localhost:8080`. The target was `https://github.com/charmbracelet/bubbletea` with external link checking enabled.
+- The smoke run returned HTTP 200, redirected the htmx push URL to `/report/charmbracelet/bubbletea?external=1`, and produced a score of 84 (grade B): 19 passed, 4 failed, and 0 skipped. The four failures were `installation-section`, `image-alt`, `no-empty-sections`, and `table-of-contents`, which is plausible for a large real-world README.
+- The direct report route, Markdown export filename, SQLite history page, and re-run link all rendered correctly after the live run. The test database was a local `readmecheck.db` created at runtime and is ignored by git.
