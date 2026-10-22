@@ -1,0 +1,87 @@
+package views
+
+import (
+	"readmecheck/components/badge"
+	"readmecheck/components/button"
+	"readmecheck/components/card"
+	"readmecheck/components/icon"
+	"readmecheck/components/input"
+)
+
+type HomeData struct {
+	Title string
+	URL   string
+}
+
+templ Home(data HomeData) {
+	@Layout(LayoutData{Title: data.Title, Active: "home"}) {
+		<section class="relative overflow-hidden">
+			<div class="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,var(--color-muted),transparent_65%)]"></div>
+			<div class="mx-auto flex max-w-5xl flex-col items-center px-4 pb-12 pt-16 text-center sm:pt-24">
+				@badge.Badge(badge.Props{Variant: badge.VariantSecondary, Class: "mb-5 gap-1.5 px-3 py-1"}) {
+					@icon.ListChecks(icon.Props{Class: "size-3.5"})
+					<span>Deterministic README audits</span>
+				}
+				<h1 class="max-w-3xl text-balance text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
+					Make your README<br class="hidden sm:block"/>
+					<span class="text-muted-foreground">worth reading.</span>
+				</h1>
+				<p class="mt-5 max-w-2xl text-pretty text-base leading-relaxed text-muted-foreground sm:text-lg">
+					Paste a GitHub repository. Get a practical, rule-based review of its README,
+					metadata, visuals, links, and maintenance signals. No AI, no guesswork.
+				</p>
+
+				<div class="mt-8 w-full max-w-2xl text-left">
+					@card.Card(card.Props{Class: "shadow-lg shadow-black/5"}) {
+						@card.Content(card.ContentProps{Class: "p-5 sm:p-6"}) {
+							<form action="/check" method="post" class="space-y-4">
+								<label for="repo-url" class="text-sm font-medium">GitHub repository</label>
+								<div class="flex flex-col gap-3 sm:flex-row">
+									<div class="flex-1">
+										@input.Input(input.Props{
+											ID:          "repo-url",
+											Name:        "url",
+											Type:        input.TypeURL,
+											Value:       data.URL,
+											Placeholder: "https://github.com/owner/repo",
+											Required:    true,
+											Class:       "h-10 text-base md:text-sm",
+											Attributes:  templ.Attributes{"autocomplete": "off", "spellcheck": "false"},
+										})
+									</div>
+									@button.Button(button.Props{Type: button.TypeSubmit, Size: button.SizeLg, Class: "h-10"}) {
+										@icon.Search(icon.Props{Class: "size-4"})
+										Check README
+									}
+								</div>
+								<p class="text-xs leading-relaxed text-muted-foreground">
+									Accepts <code class="rounded bg-muted px-1 py-0.5">owner/repo</code>,
+									<code class="rounded bg-muted px-1 py-0.5">github.com/owner/repo</code>,
+									and full URLs. Public repositories work without a token.
+								</p>
+							</form>
+						}
+					}
+				</div>
+
+				<div class="mt-10 grid w-full max-w-4xl gap-4 text-left sm:grid-cols-3">
+					@(featureCard("25 rules", "A documented checklist covering everything from installation instructions to broken links.", "list-checks"))
+					@(featureCard("Real evidence", "Every result explains why it matters and what to change. Failed checks appear first.", "shield-check"))
+					@(featureCard("Private by default", "Your URLs are analyzed by this local server. No account, no LLM, no telemetry.", "code"))
+				</div>
+			</div>
+		</section>
+	}
+}
+
+templ featureCard(title, description, iconName string) {
+	@card.Card(card.Props{Class: "bg-card/70"}) {
+		@card.Content(card.ContentProps{Class: "p-5"}) {
+			<div class="mb-3 flex size-9 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
+				@featureIcon(iconName)
+			</div>
+			<h2 class="text-sm font-semibold">{ title }</h2>
+			<p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">{ description }</p>
+		}
+	}
+}

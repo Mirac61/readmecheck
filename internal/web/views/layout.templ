@@ -1,0 +1,93 @@
+package views
+
+import (
+	"readmecheck/components/button"
+	"readmecheck/components/copybutton"
+	"readmecheck/components/icon"
+	"readmecheck/components/input"
+	"readmecheck/components/progress"
+)
+
+type LayoutData struct {
+	Title  string
+	Active string
+}
+
+templ Layout(data LayoutData) {
+	<!DOCTYPE html>
+	<html lang="en" class="">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<meta name="description" content="A deterministic, rule-based README auditor for GitHub repositories."/>
+			<title>{ data.Title } · readmecheck</title>
+			<script>
+				(function () {
+					const stored = localStorage.getItem("readmecheck-theme");
+					const dark = stored ? stored === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+					document.documentElement.classList.toggle("dark", dark);
+				})();
+			</script>
+			<link rel="stylesheet" href="/assets/css/output.css"/>
+			<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23171717'/%3E%3Cpath d='M20 22h24M20 32h18M20 42h12' stroke='%23fff' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E"/>
+			<script src="/assets/js/htmx.min.js" defer></script>
+			@input.Script()
+			@progress.Script()
+			@copybutton.Script()
+		</head>
+		<body class="min-h-dvh antialiased">
+			@siteHeader(data.Active)
+			<main id="content">
+				{ children... }
+			</main>
+			@siteFooter()
+			<script>
+				document.addEventListener("click", function (event) {
+					const toggle = event.target.closest("[data-theme-toggle]");
+					if (!toggle) return;
+					const isDark = document.documentElement.classList.toggle("dark");
+					localStorage.setItem("readmecheck-theme", isDark ? "dark" : "light");
+				});
+			</script>
+		</body>
+	</html>
+}
+
+templ siteHeader(active string) {
+	<header class="sticky top-0 z-40 border-b bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+		<div class="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4">
+			<a href="/" class="flex items-center gap-2 font-semibold tracking-tight">
+				<span class="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+					@icon.ListChecks(icon.Props{Class: "size-4"})
+				</span>
+				readmecheck
+			</a>
+			<nav class="flex items-center gap-1">
+				@navLink("/", "Check", active == "home")
+				@navLink("/history", "History", active == "history")
+				@button.Button(button.Props{Size: button.SizeIcon, Variant: button.VariantGhost, Type: button.TypeButton, Attributes: templ.Attributes{"data-theme-toggle": "true", "aria-label": "Toggle dark mode", "title": "Toggle dark mode"}}) {
+					@icon.Sun(icon.Props{Class: "size-4 dark:hidden"})
+					@icon.Moon(icon.Props{Class: "hidden size-4 dark:block"})
+				}
+			</nav>
+		</div>
+	</header>
+}
+
+templ navLink(href, label string, active bool) {
+	<a
+		href={ templ.SafeURL(href) }
+		class={ "rounded-md px-3 py-1.5 text-sm font-medium transition-colors", templ.KV("bg-secondary text-secondary-foreground", active), templ.KV("text-muted-foreground hover:bg-accent hover:text-accent-foreground", !active) }
+	>{ label }</a>
+}
+
+templ siteFooter() {
+	<footer class="mt-16 border-t">
+		<div class="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-8 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+			<p>readmecheck · deterministic README reviews</p>
+			<p>
+				Built with Go, templ, templUI, and htmx.
+			</p>
+		</div>
+	</footer>
+}
