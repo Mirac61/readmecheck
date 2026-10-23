@@ -34,8 +34,9 @@ readmecheck turns those expectations into a documented checklist. Every rule has
 - Weighted overall score from 0 to 100 with an A–F grade and per-category scores.
 - Deterministic Markdown parsing through goldmark with GFM support.
 - Optional external link checking with bounded concurrency and request timeouts.
-- Relative link verification against the repository's real file tree.
-- SQLite history with one row per run and a latest-check-per-repository view.
+- Relative link and image verification against the repository's real file tree, resolved from the README's directory.
+- SQLite history with a latest-check-per-repository view and score deltas between runs.
+- Bounded in-memory caching with conditional (`ETag`) GitHub requests, private-address blocking in the link checker, and no telemetry.
 - Server-rendered templ UI with templUI components, htmx navigation, dark mode, and a responsive layout.
 - Copy-to-clipboard and downloadable Markdown reports.
 - No accounts, no telemetry, and no AI-generated judgments.
@@ -97,7 +98,7 @@ A report includes:
 - Evidence, a "Why it matters" explanation, and a "How to fix" suggestion for each failed or skipped check.
 - A copy button and a downloadable Markdown file for sharing or tracking changes.
 
-Direct report URLs are stable while the server is running: `/report/{owner}/{repo}`. Add `?external=1` to include external link checks. Each analysis is saved to the SQLite history database, and the History page shows the latest result per repository with a re-run link.
+Direct report URLs are stable while the server is running: `/report/{owner}/{repo}`. Add `?external=1` to include external link checks. Each analysis is saved to the SQLite history database; reloading an unchanged report within five minutes reuses the previous row. The History page shows the latest result per repository with a re-run link.
 
 ## Configuration
 

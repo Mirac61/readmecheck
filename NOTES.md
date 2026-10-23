@@ -12,7 +12,7 @@ The one exception is the optional external-link check, which depends on the curr
 
 ### README model instead of HTML scraping
 
-goldmark parses the README with GFM enabled. The document model records headings, paragraphs, fenced code blocks, Markdown links, Markdown images, raw HTML images and anchors, Mermaid blocks, word count, and empty sections. Raw HTML is inspected for `<h1>`, `<img>`, and `<a>` because many real READMEs mix HTML into Markdown.
+goldmark parses the README with GFM enabled. The document model records headings, paragraphs, fenced code blocks, Markdown links, Markdown images, raw HTML images and anchors, Mermaid blocks, word count, empty sections, and a code-free prose view. Raw HTML is inspected for `<h1>`, `<p>`, `<img>`, and `<a>` because many real READMEs mix HTML into Markdown. A centered `<p>` before the first subheading is treated as the intro paragraph.
 
 The model is deliberately broad rather than clever. Rules look for explicit evidence such as a heading or a fenced block. This keeps the behavior explainable and makes false positives easier to fix.
 
@@ -36,7 +36,9 @@ The parser accepts full GitHub URLs, `github.com/owner/repo`, bare `owner/repo`,
 
 ### GitHub provider
 
-The provider makes six independent API requests: repository metadata, raw README, root contents, GitHub Actions workflows, latest release, and a recursive git tree. They run concurrently, and a per-repository in-memory cache stores successful snapshots for ten minutes. The cache makes a report URL followed by a history re-run fast without hiding new data for long.
+The provider makes five independent API requests: repository metadata, raw README, GitHub Actions workflows, latest release, and a recursive git tree. They run concurrently, and a per-repository in-memory cache stores up to 256 successful snapshots for ten minutes. The root directory listing is derived from the recursive tree, saving a separate `/contents` request; if the tree is truncated or unavailable, the provider falls back to `/contents`. The cache makes a report URL followed by a history re-run fast without hiding new data for long.
+
+Once a snapshot expires, requests are conditional: responses with an `ETag` are kept in a second bounded cache (64 entries, 1 MiB per body, 8 MiB total) and replayed when GitHub answers `304 Not Modified`. Those responses do not count against the primary rate limit, so frequent re-runs of an unchanged repository are cheap. The README filename from `Content-Disposition` is stored with the body because a 304 omits it.
 
 A missing README is not treated as a provider failure. The snapshot records that the README was checked and is absent, and the `readme-exists` rule fails so the user still gets a report. A missing workflow list or file tree marks the related rules as skipped.
 
@@ -44,19 +46,19 @@ The provider reads an optional `GITHUB_TOKEN` and sets the standard bearer autho
 
 ### Relative and external links
 
-Relative links are resolved from the repository root, matching how GitHub renders README files. A recursive git tree supplies existence information. If the tree response is truncated or unavailable, the rule is skipped rather than reporting false failures.
+Relative links and images are resolved from the directory that contains the README, matching how GitHub renders nested README files; parent segments are allowed while the result stays inside the repository. A recursive git tree supplies existence information. If the tree response is truncated or unavailable, the rule is skipped rather than reporting false failures.
 
-External checking is disabled by default at the rule-engine level and enabled by default in the web form. The HTTP checker deduplicates URLs, checks at most 50 links, uses eight workers, tries HEAD first with a GET fallback, and treats 401, 403, and 429 as reachable because those responses usually indicate access policy rather than a dead page. Network failures and 4xx/5xx responses other than those exceptions fail the rule.
+External checking is disabled by default at the rule-engine level and enabled by default in the web form. The HTTP checker deduplicates URLs, checks at most 50 links, uses eight workers, tries HEAD first and retries with GET whenever the HEAD result is unsuccessful, and treats 401, 403, and 429 as reachable because those responses usually indicate access policy rather than a dead page. Network failures and 4xx/5xx responses other than those exceptions fail the rule. The default client refuses loopback, link-local, and private network addresses to avoid server-side request forgery through README links.
 
 ### History
 
-One row is written per run. The History page displays the latest run for each owner/repository pair. Re-running a history entry opens the report route, which performs a fresh analysis and writes another row. The database is SQLite through `modernc.org/sqlite`, which keeps the project fully Go and avoids a C toolchain.
+The History page displays the latest run for each owner/repository pair, and reports show the score delta against the previous run. Reloading an unchanged report within five minutes is coalesced, so a browser refresh does not create a duplicate row. Re-running a history entry opens the report route, which performs a fresh analysis and records a new result once it differs. The database is SQLite through `modernc.org/sqlite`, which keeps the project fully Go and avoids a C toolchain.
 
 ### UI and htmx
 
 The UI is server-rendered with templ and templUI components. htmx submits the form and swaps the report into `#results`; the server sets `HX-Push-Url` so the report has a shareable URL. A normal form submission still works without JavaScript and renders the full report page.
 
-The report exports Markdown through a hidden textarea. Copying uses the local templUI copy button, extended with an optional visible label. Downloading uses a small delegated Blob handler in the layout. Dark mode is a class on the root element with a `localStorage` preference and an operating-system fallback.
+The report exports Markdown through a hidden textarea. Copying uses the local templUI copy button, extended with an optional visible label. Downloading uses a small delegated Blob handler in the layout. The report also shows a check-distribution doughnut and a category radar chart using the templUI chart component, which vendors Chart.js under `assets/js`. Dark mode is a class on the root element with a `localStorage` preference and an operating-system fallback.
 
 The server binds to `localhost:8080` and sets basic security headers. The link checker is intended for local use; see the known issues below before exposing the app on a network.
 
@@ -81,13 +83,19 @@ The Tailwind binary is placed in `bin/` and excluded from git. `make tools` down
 
 The local `components/copybutton` component has one small change from the generated templUI version: an optional `Label` field. It is used for the visible "Copy report as Markdown" button. Re-running the templUI installer may overwrite that file, so keep the patch in mind when upgrading components.
 
+`components/dialog/dialog.templ` is patched too: a darker, slightly blurred backdrop, a `focus-visible` ring on the close button so mouse users do not see a ring on open, and `tabindex="-1" autofocus` on the `<dialog>` so the first focus lands on the dialog instead of the close button. Re-apply these when upgrading the component.
+
+`components/progress/progress.templ` is patched as well: the track uses `bg-foreground/10` with an inset `ring-foreground/15` instead of `bg-secondary`, because the stock track is almost invisible on a dark card and the end of a bar could not be seen.
+
+`assets/js/chart.js` and the bundled `chart.min.js` set `Chart.defaults.font.size = 14` and the default text colour to the theme foreground, because the Chart.js defaults (12px, muted) were hard to read. `chart.min.js` is an esbuild bundle, so the same two lines were patched there by hand; redo both when updating the chart component.
+
 ## Known issues and limitations
 
 - Only github.com repositories are supported. GitLab, Codeberg, and self-hosted GitHub Enterprise URLs are rejected.
 - Unauthenticated GitHub requests are limited to 60 per hour. The UI explains the reset time when the limit is reached. A token is the normal remedy.
 - Badge validation covers GitHub Actions workflow badges, including shields.io workflow-status badges. Other badge services are not treated as CI claims and are not verified for correctness.
 - External link checking can be slow on READMEs with many links, although the 50-link cap and worker limit bound the work. Redirects are followed by the HTTP client's default policy.
-- The external link checker does not block private or loopback destinations. Because the server binds to localhost, this is acceptable for the intended local workflow, but it should be hardened before deployment on a shared network or the public internet.
+- The link checker blocks private, loopback, and link-local addresses, but it does not re-validate DNS answers between lookup and connect and it follows redirects with the default policy. Harden it further before exposing the app on a shared network or the public internet.
 - Relative-link checking tests path existence, not anchor fragments inside target files.
 - Repository descriptions, topics, and license names are taken from the GitHub API at check time. A stale token or an API outage can change which metadata rules are available.
 - The in-memory provider cache is lost on restart. It is a performance aid, not a durable mirror.
