@@ -2,6 +2,7 @@ package rules
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -23,6 +24,13 @@ func TestHTTPLinkCheckerStatuses(t *testing.T) {
 		}
 		w.WriteHeader(http.StatusOK)
 	})
+	mux.HandleFunc("/head-missing", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodHead {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
 	mux.HandleFunc("/redirect", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/ok", http.StatusFound)
 	})
@@ -39,6 +47,7 @@ func TestHTTPLinkCheckerStatuses(t *testing.T) {
 		server.URL + "/forbidden",
 		server.URL + "/server-error",
 		server.URL + "/head-not-allowed",
+		server.URL + "/head-missing",
 		server.URL + "/redirect",
 		server.URL + "/missing",
 	}
@@ -60,6 +69,7 @@ func TestHTTPLinkCheckerStatuses(t *testing.T) {
 		{"/forbidden", true, 403},
 		{"/server-error", false, 500},
 		{"/head-not-allowed", true, 200},
+		{"/head-missing", true, 200},
 		{"/redirect", true, 200},
 	}
 	for _, tt := range tests {
@@ -106,6 +116,21 @@ func TestHTTPLinkCheckerConcurrencyLimit(t *testing.T) {
 	}
 	if got := maximum.Load(); got > 2 {
 		t.Fatalf("maximum concurrent requests = %d, want <= 2", got)
+	}
+}
+
+func TestIsBlockedIP(t *testing.T) {
+	t.Parallel()
+	blocked := []string{"127.0.0.1", "10.0.0.1", "192.168.1.20", "169.254.169.254", "::1", "fd00::1"}
+	for _, value := range blocked {
+		if !isBlockedIP(net.ParseIP(value)) {
+			t.Errorf("isBlockedIP(%s) = false, want true", value)
+		}
+	}
+	for _, value := range []string{"8.8.8.8", "1.1.1.1", "2606:4700:4700::1111"} {
+		if isBlockedIP(net.ParseIP(value)) {
+			t.Errorf("isBlockedIP(%s) = true, want false", value)
+		}
 	}
 }
 

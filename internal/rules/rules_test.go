@@ -227,6 +227,55 @@ func TestGermanReadmeKeywords(t *testing.T) {
 	}
 }
 
+func TestRelativeLinksResolveFromNestedReadme(t *testing.T) {
+	t.Parallel()
+	repository := repositoryFixture(t, "good.md")
+	repository.Readme.Path = "docs/README.md"
+	repository.Readme.Content = []byte("# Demo\n\n[Guide](guide.md)\n\n![Screenshot](screenshot.png)\n")
+	repository.Files["docs/README.md"] = true
+	report := Analyze(context.Background(), repository, Options{LinkChecker: fakeLinkChecker{}})
+	expectStatus(t, report, "relative-links", StatusPass)
+}
+
+func TestMissingRelativeImageFails(t *testing.T) {
+	t.Parallel()
+	repository := repositoryFixture(t, "good.md")
+	repository.Readme.Content = []byte("# Demo\n\n![Screenshot](docs/missing.png)\n")
+	report := Analyze(context.Background(), repository, Options{LinkChecker: fakeLinkChecker{}})
+	result := resultByID(t, report, "relative-links")
+	if result.Status != StatusFail {
+		t.Fatalf("relative-links = %+v", result)
+	}
+	if !strings.Contains(strings.Join(result.Evidence, "\n"), "docs/missing.png") {
+		t.Errorf("evidence = %v", result.Evidence)
+	}
+}
+
+func TestRelativeLinkOutsideReadmeDirectory(t *testing.T) {
+	t.Parallel()
+	for _, target := range []string{"../../secret.md", "../../../etc/passwd"} {
+		if resolved, ok := resolveRelativeLinkForReadme(target, "docs/README.md"); ok {
+			t.Errorf("resolveRelativeLinkForReadme(%q) = %q, true; want rejected", target, resolved)
+		}
+	}
+	resolved, ok := resolveRelativeLinkForReadme("../CONTRIBUTING.md", "nested/deep/README.md")
+	if !ok || resolved != "nested/CONTRIBUTING.md" {
+		t.Errorf("nested relative link = %q, %v", resolved, ok)
+	}
+	root, ok := resolveRelativeLinkForReadme("../outside.md", "docs/README.md")
+	if !ok || root != "outside.md" {
+		t.Errorf("parent relative link = %q, %v", root, ok)
+	}
+}
+
+func TestTitleMustBeFirstHeading(t *testing.T) {
+	t.Parallel()
+	repository := repositoryFixture(t, "good.md")
+	repository.Readme.Content = []byte("## Usage\n\nRun the tool.\n\n# Demo\n\nDemo turns text into diagrams for the whole team.\n")
+	report := Analyze(context.Background(), repository, Options{LinkChecker: fakeLinkChecker{}})
+	expectStatus(t, report, "top-level-title", StatusFail)
+}
+
 func TestBrokenRelativeLinks(t *testing.T) {
 	t.Parallel()
 	repository := repositoryFixture(t, "broken-links.md")

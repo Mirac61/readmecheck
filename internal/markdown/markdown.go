@@ -17,7 +17,11 @@ import (
 )
 
 type Document struct {
-	Raw        string
+	Raw string
+	// Prose is the document text with fenced code blocks, indented code
+	// blocks, and inline code spans removed. Rules that look for human-written
+	// text use it to avoid matching code samples.
+	Prose      string
 	Title      string
 	Headings   []Heading
 	Paragraphs []Paragraph
@@ -76,6 +80,7 @@ var (
 	anchorTagPattern = regexp.MustCompile(`(?is)<a\b[^>]*>`)
 	htmlTagPattern   = regexp.MustCompile(`(?is)<[^>]+>`)
 	h1Pattern        = regexp.MustCompile(`(?is)<h1\b[^>]*>(.*?)</h1>`)
+	pTagPattern      = regexp.MustCompile(`(?is)<p\b[^>]*>(.*?)</p>`)
 	attrPattern      = regexp.MustCompile(`(?is)([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>]+))`)
 )
 
@@ -88,23 +93,31 @@ func Parse(source []byte) Document {
 		Words: len(strings.Fields(raw)),
 	}
 	root := markdownParser.Parser().Parse(text.NewReader(source))
+	doc.Prose = proseText(root, source)
 
 	currentSection := ""
 	seenSubheading := false
 	htmlParts := make([]string, 0)
+	introHTMLParts := make([]string, 0)
 
-	pendingHeading := -1
+	var pendingStack []int
 	for node := root.FirstChild(); node != nil; node = node.NextSibling() {
 		if heading, ok := node.(*ast.Heading); ok {
-			if pendingHeading >= 0 {
-				doc.Headings[pendingHeading].Empty = true
+			for len(pendingStack) > 0 {
+				top := pendingStack[len(pendingStack)-1]
+				if doc.Headings[top].Level >= heading.Level {
+					doc.Headings[top].Empty = true
+					pendingStack = pendingStack[:len(pendingStack)-1]
+				} else {
+					break
+				}
 			}
 			text := cleanInlineText(visibleText(heading, source))
 			doc.Headings = append(doc.Headings, Heading{
 				Text:  text,
 				Level: heading.Level,
 			})
-			pendingHeading = len(doc.Headings) - 1
+			pendingStack = append(pendingStack, len(doc.Headings)-1)
 			currentSection = text
 			if heading.Level >= 2 {
 				seenSubheading = true
@@ -117,7 +130,10 @@ func Parse(source []byte) Document {
 		}
 
 		if isContentNode(node) {
-			pendingHeading = -1
+			pendingStack = pendingStack[:0]
+		}
+		if !seenSubheading {
+			collectHTML(node, source, &introHTMLParts)
 		}
 
 		switch n := node.(type) {
@@ -163,12 +179,13 @@ func Parse(source []byte) Document {
 		return ast.WalkContinue, nil
 	})
 
-	if pendingHeading >= 0 {
-		doc.Headings[pendingHeading].Empty = true
+	for _, idx := range pendingStack {
+		doc.Headings[idx].Empty = true
 	}
 
 	doc.HTML = strings.Join(htmlParts, "\n")
 	parseHTML(&doc)
+	prependIntroHTMLParagraphs(&doc, strings.Join(introHTMLParts, "\n"))
 
 	if doc.Title == "" {
 		doc.Title = htmlTitle(doc.HTML)
@@ -314,6 +331,54 @@ func countLines(raw string) int {
 		return 0
 	}
 	return strings.Count(raw, "\n") + 1
+}
+
+// proseText collects visible text while skipping code samples. Placeholder
+// detection uses this so a TODO inside a shell snippet is not mistaken for an
+// unfinished README.
+func proseText(root ast.Node, source []byte) string {
+	var builder strings.Builder
+	ast.Walk(root, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		switch n := node.(type) {
+		case *ast.FencedCodeBlock, *ast.CodeBlock, *ast.CodeSpan:
+			return ast.WalkSkipChildren, nil
+		case *ast.Text:
+			builder.Write(n.Segment.Value(source))
+			builder.WriteByte('\n')
+		case *ast.String:
+			builder.Write(n.Value)
+			builder.WriteByte('\n')
+		}
+		return ast.WalkContinue, nil
+	})
+	return builder.String()
+}
+
+// prependIntroHTMLParagraphs adds the first text-bearing <p> element that
+// appears before the first subheading. Many READMEs use a centered HTML block
+// with an <h1> and a tagline instead of Markdown paragraphs.
+func prependIntroHTMLParagraphs(doc *Document, htmlText string) {
+	if strings.TrimSpace(htmlText) == "" {
+		return
+	}
+	for _, match := range pTagPattern.FindAllStringSubmatch(htmlText, -1) {
+		text := htmlTagPattern.ReplaceAllString(match[1], " ")
+		text = cleanInlineText(htmlstd.UnescapeString(text))
+		if text == "" || !containsLetter(text) {
+			continue
+		}
+		paragraph := Paragraph{
+			Text:    text,
+			Section: doc.Title,
+			Intro:   true,
+			Words:   len(strings.Fields(text)),
+		}
+		doc.Paragraphs = append([]Paragraph{paragraph}, doc.Paragraphs...)
+		return
+	}
 }
 
 func parseHTML(doc *Document) {
@@ -611,6 +676,34 @@ func (d Document) RelativeLinks() []Link {
 		}
 		seen[pathValue] = true
 		result = append(result, link)
+	}
+	return result
+}
+
+func (d Document) RelativeImages() []Image {
+	seen := make(map[string]bool)
+	result := make([]Image, 0)
+	for _, image := range d.Images {
+		raw := strings.TrimSpace(image.Destination)
+		if raw == "" || strings.HasPrefix(raw, "#") {
+			continue
+		}
+		parsed, err := url.Parse(raw)
+		if err != nil {
+			continue
+		}
+		if parsed.IsAbs() || parsed.Host != "" || parsed.Scheme != "" {
+			continue
+		}
+		pathValue := strings.TrimSpace(parsed.Path)
+		if pathValue == "" {
+			continue
+		}
+		if seen[pathValue] {
+			continue
+		}
+		seen[pathValue] = true
+		result = append(result, image)
 	}
 	return result
 }

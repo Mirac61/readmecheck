@@ -7,6 +7,8 @@ type RuleSummary struct {
 	Category Category
 	Severity Severity
 	Weight   int
+	Why      string
+	Fix      string
 }
 
 // CategoryRules groups the rule catalog by category, in display order.
@@ -28,6 +30,8 @@ func Catalog() []CategoryRules {
 			Category: rule.Category,
 			Severity: rule.Severity,
 			Weight:   rule.Weight,
+			Why:      rule.Why,
+			Fix:      rule.Fix,
 		})
 	}
 

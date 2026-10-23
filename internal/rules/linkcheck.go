@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"sync"
 	"time"
@@ -38,12 +40,75 @@ type HTTPLinkChecker struct {
 
 func NewHTTPLinkChecker() *HTTPLinkChecker {
 	return &HTTPLinkChecker{
-		Client:    &http.Client{Timeout: 10 * time.Second},
+		Client:    newSafeHTTPClient(),
 		Workers:   DefaultLinkWorkers,
 		Timeout:   DefaultLinkTimeout,
 		MaxLinks:  DefaultMaxLinkChecks,
 		UserAgent: "readmecheck/1.0 (+https://github.com; link checker)",
 	}
+}
+
+func newSafeHTTPClient() *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.DialContext = safeDialContext
+	return &http.Client{Timeout: 10 * time.Second, Transport: transport}
+}
+
+var blockedPrefixes = []netip.Prefix{
+	netip.MustParsePrefix("0.0.0.0/8"),
+	netip.MustParsePrefix("10.0.0.0/8"),
+	netip.MustParsePrefix("100.64.0.0/10"),
+	netip.MustParsePrefix("127.0.0.0/8"),
+	netip.MustParsePrefix("169.254.0.0/16"),
+	netip.MustParsePrefix("172.16.0.0/12"),
+	netip.MustParsePrefix("192.168.0.0/16"),
+	netip.MustParsePrefix("::1/128"),
+	netip.MustParsePrefix("fc00::/7"),
+	netip.MustParsePrefix("fe80::/10"),
+}
+
+func isBlockedIP(ip net.IP) bool {
+	addr, ok := netip.AddrFromSlice(ip)
+	if !ok {
+		return true
+	}
+	addr = addr.Unmap()
+	for _, prefix := range blockedPrefixes {
+		if prefix.Contains(addr) {
+			return true
+		}
+	}
+	return false
+}
+
+// safeDialContext resolves the host itself and refuses private addresses, so
+// a crafted README link cannot reach loopback services or the LAN.
+func safeDialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return nil, err
+	}
+	addresses, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+	var lastErr error
+	for _, address := range addresses {
+		if isBlockedIP(address.IP) {
+			lastErr = fmt.Errorf("link checker refuses private address %s", address.IP)
+			continue
+		}
+		dialer := &net.Dialer{Timeout: 5 * time.Second, KeepAlive: 30 * time.Second}
+		conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(address.IP.String(), port))
+		if err == nil {
+			return conn, nil
+		}
+		lastErr = err
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("no usable address for %s", host)
+	}
+	return nil, lastErr
 }
 
 func (c *HTTPLinkChecker) Check(ctx context.Context, urls []string) []LinkCheck {
@@ -123,12 +188,23 @@ func (c *HTTPLinkChecker) checkOne(ctx context.Context, client *http.Client, tar
 	}
 
 	result := check(http.MethodHead)
-	if result.Err == "" && (result.StatusCode == http.StatusMethodNotAllowed ||
-		result.StatusCode == http.StatusNotImplemented ||
-		result.StatusCode == http.StatusForbidden) {
+	// Some hosts reject HEAD, and bot protection often returns 400/404/500 for
+	// HEAD while serving the page to GET. Retry any unsuccessful HEAD once.
+	if result.Err == "" && !result.OK && !isIndeterminateStatus(result.StatusCode) {
 		result = check(http.MethodGet)
 	}
 	return result
+}
+
+func isIndeterminateStatus(status int) bool {
+	// These codes already prove the host answered; treating them as reachable
+	// is intentional and a GET retry would not add information.
+	switch status {
+	case http.StatusUnauthorized, http.StatusForbidden, http.StatusTooManyRequests:
+		return true
+	default:
+		return false
+	}
 }
 
 func reachableStatus(status int) bool {

@@ -122,7 +122,10 @@ demo
 Hello.
 `))
 	empty := doc.EmptySections()
-	want := map[string]bool{"Project": true, "Installation": true, "Details": true}
+	// A sub-heading does not make its parent empty, and code blocks count as
+	// content. Installation is empty because Usage follows at the same level,
+	// Details because Contributing follows at a higher level.
+	want := map[string]bool{"Installation": true, "Details": true}
 	if len(empty) != len(want) {
 		t.Fatalf("EmptySections = %v, want %v", empty, want)
 	}
@@ -130,6 +133,56 @@ Hello.
 		if !want[heading] {
 			t.Errorf("unexpected empty heading %q; all: %v", heading, empty)
 		}
+	}
+}
+
+func TestParseHeadingWithOnlySubsectionsIsNotEmpty(t *testing.T) {
+	t.Parallel()
+	doc := Parse([]byte(`# Project
+
+## Usage
+
+### Install
+
+Run the installer.
+
+### Configure
+
+Edit the config.
+`))
+	if empty := doc.EmptySections(); len(empty) != 0 {
+		t.Fatalf("EmptySections = %v, want none", empty)
+	}
+}
+
+func TestParseIgnoresPlaceholdersInCode(t *testing.T) {
+	t.Parallel()
+	doc := Parse([]byte("# Project\n\nRun the sample:\n\n```go\n// TODO: replace this example\n```\n\nInline `TODO` is also code.\n"))
+	if strings.Contains(doc.Prose, "TODO") {
+		t.Fatalf("Prose contains code placeholder: %q", doc.Prose)
+	}
+}
+
+func TestParseHTMLIntroParagraph(t *testing.T) {
+	t.Parallel()
+	doc := Parse([]byte(`<p align="center">
+  <img src="logo.png" alt="logo">
+</p>
+<p align="center">Turns YAML into JSON, fast.</p>
+
+## Usage
+
+Run it.
+`))
+	if doc.Title != "" {
+		t.Fatalf("unexpected title %q", doc.Title)
+	}
+	intro, ok := doc.FirstIntroParagraph()
+	if !ok {
+		t.Fatal("no HTML intro paragraph found")
+	}
+	if intro.Text != "Turns YAML into JSON, fast." {
+		t.Fatalf("intro = %q", intro.Text)
 	}
 }
 

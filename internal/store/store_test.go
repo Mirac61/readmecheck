@@ -49,6 +49,55 @@ func TestRecentReturnsLatestPerRepository(t *testing.T) {
 	}
 }
 
+func TestSaveSkipsIdenticalReload(t *testing.T) {
+	t.Parallel()
+	database, err := Open(":memory:")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = database.Close() })
+	ctx := context.Background()
+
+	base := time.Now().UTC().Add(-time.Hour)
+	check := Check{Owner: "owner", Repo: "demo", Score: 80, Grade: "B", CheckedAt: base}
+	if err := database.Save(ctx, check); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	reload := check
+	reload.CheckedAt = base.Add(time.Second)
+	if err := database.Save(ctx, reload); err != nil {
+		t.Fatalf("Save reload: %v", err)
+	}
+
+	var count int
+	if err := database.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM checks`).Scan(&count); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("identical reload created %d rows, want 1", count)
+	}
+
+	previous, found, err := database.Previous(ctx, "OWNER", "Demo")
+	if err != nil || !found {
+		t.Fatalf("Previous = %+v, %v, %v", previous, found, err)
+	}
+	if previous.Score != 80 || previous.Grade != "B" {
+		t.Fatalf("Previous = %+v", previous)
+	}
+
+	later := check
+	later.CheckedAt = base.Add(10 * time.Minute)
+	if err := database.Save(ctx, later); err != nil {
+		t.Fatalf("Save later: %v", err)
+	}
+	if err := database.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM checks`).Scan(&count); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("check outside duplicate window was skipped: %d rows", count)
+	}
+}
+
 func TestRecentLimitAndEmpty(t *testing.T) {
 	t.Parallel()
 	database, err := Open(":memory:")

@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -80,6 +81,11 @@ func (s *SQLite) migrate() error {
 	return nil
 }
 
+// duplicateWindow is the period in which an identical result for the same
+// repository is treated as a page reload rather than a new check. Without it,
+// refreshing a report URL would add a history row every time.
+const duplicateWindow = 5 * time.Minute
+
 func (s *SQLite) Save(ctx context.Context, check Check) error {
 	if strings.TrimSpace(check.Owner) == "" || strings.TrimSpace(check.Repo) == "" {
 		return fmt.Errorf("check owner and repo are required")
@@ -87,7 +93,23 @@ func (s *SQLite) Save(ctx context.Context, check Check) error {
 	if check.CheckedAt.IsZero() {
 		check.CheckedAt = time.Now()
 	}
-	_, err := s.db.ExecContext(ctx, `
+	previous, found, err := s.Previous(ctx, check.Owner, check.Repo)
+	if err != nil {
+		return err
+	}
+	if found {
+		elapsed := check.CheckedAt.Sub(previous.CheckedAt)
+		if elapsed < 0 {
+			elapsed = -elapsed
+		}
+		if elapsed <= duplicateWindow &&
+			previous.Score == check.Score &&
+			previous.Grade == check.Grade &&
+			previous.ExternalLinks == check.ExternalLinks {
+			return nil
+		}
+	}
+	_, err = s.db.ExecContext(ctx, `
 		INSERT INTO checks (owner, repo, description, license, stars, score, grade, checked_at, external_links)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
@@ -105,6 +127,41 @@ func (s *SQLite) Save(ctx context.Context, check Check) error {
 		return fmt.Errorf("save check: %w", err)
 	}
 	return nil
+}
+
+// Previous returns the most recent stored check for a repository. It is not
+// part of Store so alternative stores can opt in when they can provide it.
+func (s *SQLite) Previous(ctx context.Context, owner, repo string) (Check, bool, error) {
+	var check Check
+	var checkedAt int64
+	var external int
+	err := s.db.QueryRowContext(ctx, `
+		SELECT id, owner, repo, description, license, stars, score, grade, checked_at, external_links
+		FROM checks
+		WHERE lower(owner) = lower(?) AND lower(repo) = lower(?)
+		ORDER BY id DESC
+		LIMIT 1
+	`, strings.TrimSpace(owner), strings.TrimSpace(repo)).Scan(
+		&check.ID,
+		&check.Owner,
+		&check.Repo,
+		&check.Description,
+		&check.License,
+		&check.Stars,
+		&check.Score,
+		&check.Grade,
+		&checkedAt,
+		&external,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Check{}, false, nil
+	}
+	if err != nil {
+		return Check{}, false, fmt.Errorf("query previous check: %w", err)
+	}
+	check.CheckedAt = time.UnixMilli(checkedAt).UTC()
+	check.ExternalLinks = external != 0
+	return check, true, nil
 }
 
 func (s *SQLite) Recent(ctx context.Context, limit int) ([]Check, error) {

@@ -289,6 +289,16 @@ func checkTitle(_ context.Context, input Input, _ Options) Result {
 	if strings.TrimSpace(input.Document.Title) == "" {
 		return failed("No H1 title was found in the README.")
 	}
+	firstH1 := -1
+	for i, heading := range input.Document.Headings {
+		if heading.Level == 1 {
+			firstH1 = i
+			break
+		}
+	}
+	if firstH1 > 0 {
+		return failed(fmt.Sprintf("The README opens with the %q heading before its H1 title.", input.Document.Headings[0].Text))
+	}
 	return passed(fmt.Sprintf("Found the title %q.", input.Document.Title))
 }
 
@@ -587,7 +597,7 @@ func checkPlaceholders(_ context.Context, input Input, _ Options) Result {
 	if !hasReadme(input) {
 		return skipped("No readable README to inspect.")
 	}
-	markers := findPlaceholders(input.Document.Raw)
+	markers := findPlaceholders(input.Document.Prose)
 	if len(markers) == 0 {
 		return passed("No template placeholders were found.")
 	}
@@ -626,30 +636,44 @@ func checkRelativeLinks(_ context.Context, input Input, _ Options) Result {
 		return skipped("No readable README to inspect.")
 	}
 	links := input.Document.RelativeLinks()
-	if len(links) == 0 {
-		return passed("No relative links to verify.")
+	images := input.Document.RelativeImages()
+	total := len(links) + len(images)
+	if total == 0 {
+		return passed("No relative links or images to verify.")
 	}
 	if input.Repository == nil || !input.Repository.TreeKnown {
 		return skipped("The repository file tree is unavailable, so relative links cannot be verified.")
 	}
+	readmePath := ""
+	if input.Repository.Readme != nil {
+		readmePath = input.Repository.Readme.Path
+	}
 	var missing []string
-	for _, link := range links {
-		target, ok := resolveRelativeLink(link.Destination)
+	seen := make(map[string]bool)
+	check := func(raw string) {
+		target, ok := resolveRelativeLinkForReadme(raw, readmePath)
 		if !ok {
-			missing = append(missing, link.Destination+" (invalid path)")
-			continue
+			missing = append(missing, raw+" (invalid path)")
+			return
 		}
-		if target == "." {
-			continue
+		if target == "." || seen[target] {
+			return
 		}
+		seen[target] = true
 		if !input.Repository.HasFile(target) {
-			missing = append(missing, link.Destination)
+			missing = append(missing, raw)
 		}
+	}
+	for _, link := range links {
+		check(link.Destination)
+	}
+	for _, image := range images {
+		check(image.Destination)
 	}
 	if len(missing) > 0 {
-		return failed(fmt.Sprintf("%d of %d relative links point to missing paths.", len(missing), len(links)), limitEvidence(missing, 6)...)
+		return failed(fmt.Sprintf("%d of %d relative links or images point to missing paths.", len(missing), total), limitEvidence(missing, 6)...)
 	}
-	return passed(fmt.Sprintf("All %d relative links point to existing paths.", len(links)))
+	return passed(fmt.Sprintf("All %d relative links and images point to existing paths.", total))
 }
 
 func checkExternalLinks(ctx context.Context, input Input, options Options) Result {
@@ -738,7 +762,7 @@ func hasContributingFile(repository *github.Repository) bool {
 	return false
 }
 
-func resolveRelativeLink(raw string) (string, bool) {
+func relativePath(raw string) (string, bool) {
 	parsed, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil || parsed.IsAbs() || parsed.Host != "" {
 		return "", false
@@ -751,11 +775,48 @@ func resolveRelativeLink(raw string) (string, bool) {
 	if value == "" {
 		return "", false
 	}
-	cleaned := path.Clean(value)
-	if strings.HasPrefix(cleaned, "../") || cleaned == ".." {
+	return path.Clean(value), true
+}
+
+func pathEscapesRepository(value string) bool {
+	return value == ".." || strings.HasPrefix(value, "../")
+}
+
+func resolveRelativeLink(raw string) (string, bool) {
+	cleaned, ok := relativePath(raw)
+	if !ok || pathEscapesRepository(cleaned) {
 		return "", false
 	}
 	return cleaned, true
+}
+
+// resolveRelativeLinkForReadme resolves a README-relative path against the
+// directory that contains the README, matching how GitHub renders links in
+// nested README files. Parent segments are allowed as long as the result stays
+// inside the repository.
+func resolveRelativeLinkForReadme(raw, readmePath string) (string, bool) {
+	target, ok := relativePath(raw)
+	if !ok {
+		return "", false
+	}
+	if strings.HasPrefix(strings.TrimSpace(raw), "/") {
+		if pathEscapesRepository(target) {
+			return "", false
+		}
+		return target, true
+	}
+	base := path.Dir(strings.TrimSpace(readmePath))
+	if base == "." || base == "/" || base == "" {
+		if pathEscapesRepository(target) {
+			return "", false
+		}
+		return target, true
+	}
+	joined := path.Clean(path.Join(base, target))
+	if pathEscapesRepository(joined) {
+		return "", false
+	}
+	return joined, true
 }
 
 func findPlaceholders(raw string) []string {
