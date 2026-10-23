@@ -36,7 +36,7 @@ templ ReportResult(data ReportData) {
 templ reportContent(data ReportData) {
 	<div id="report" class="space-y-6">
 		@reportHeader(data)
-		<div class="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+		<div class="grid items-start gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
 			@scoreCard(data)
 			@categoryCard(data)
 		</div>
@@ -48,7 +48,7 @@ templ reportContent(data ReportData) {
 templ reportHeader(data ReportData) {
 	<section class="rounded-xl border bg-card p-5 shadow-xs sm:p-6">
 		<div class="flex flex-col gap-4 sm:flex-row sm:items-start">
-			<div class="flex size-11 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
+			<div class="flex size-11 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
 				@icon.Github(icon.Props{Class: "size-6"})
 			</div>
 			<div class="min-w-0 flex-1">
@@ -91,7 +91,7 @@ templ reportHeader(data ReportData) {
 							}
 						}
 					}
-					@badge.Badge(badge.Props{Variant: badge.VariantSecondary, Class: "gap-1"}) {
+					@badge.Badge(badge.Props{Variant: badge.VariantOutline, Class: "gap-1"}) {
 						if data.Report.ExternalLinksChecked {
 							@icon.Link2(icon.Props{Class: "size-3"})
 							<span>External links checked</span>
@@ -107,45 +107,61 @@ templ reportHeader(data ReportData) {
 }
 
 templ scoreCard(data ReportData) {
-	@card.Card(card.Props{Class: "h-full"}) {
-		@card.Content(card.ContentProps{Class: "flex h-full flex-col p-5 sm:p-6"}) {
+	@card.Card(card.Props{}) {
+		@card.Content(card.ContentProps{Class: "flex flex-col p-5 sm:p-6"}) {
 			<div class="flex items-start gap-4">
-				<div class={ "flex size-20 shrink-0 flex-col items-center justify-center rounded-2xl border", gradePanelClass(data.Report.Score) }>
-					<span class={ "text-4xl font-black leading-none", scoreTextClass(data.Report.Score) }>{ data.Report.Grade }</span>
-					<span class="mt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">grade</span>
+				<div class={ "flex size-20 shrink-0 flex-col items-center justify-center rounded-xl border", gradePanelClass(data.Report.Score) }>
+					<span class="text-4xl font-black leading-none text-foreground">{ data.Report.Grade }</span>
+					<span class="mt-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">grade</span>
 				</div>
 				<div class="min-w-0">
 					<p class="text-sm font-medium text-muted-foreground">Overall score</p>
 					<p class="mt-0.5 flex items-baseline gap-1">
-						<span class={ "text-4xl font-bold tabular-nums tracking-tight", scoreTextClass(data.Report.Score) }>{ data.Report.Score }</span>
+						<span class="text-4xl font-bold tabular-nums tracking-tight text-foreground">{ data.Report.Score }</span>
 						<span class="text-sm text-muted-foreground">/ 100</span>
 					</p>
 					<p class="mt-2 text-sm leading-relaxed text-muted-foreground">{ gradeDescription(data.Report.Grade) }</p>
 				</div>
 			</div>
-
-			<div class="mt-5 grid grid-cols-3 gap-2 border-t pt-4 text-center">
-				<div class="rounded-lg bg-emerald-500/[0.07] px-2 py-2.5">
-					<p class="text-xl font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">{ data.Report.Counts.Passed }</p>
-					<p class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Passed</p>
+			<div class="mt-5 grid grid-cols-3 divide-x border-t pt-4 text-center">
+				<div class="px-2 py-1">
+					<p class="text-xl font-semibold tabular-nums text-foreground">{ data.Report.Counts.Passed }</p>
+					<p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Passed</p>
 				</div>
-				<div class="rounded-lg bg-destructive/[0.07] px-2 py-2.5">
+				<div class="px-2 py-1">
 					<p class="text-xl font-semibold tabular-nums text-destructive">{ data.Report.Counts.Failed }</p>
-					<p class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Failed</p>
+					<p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Failed</p>
 				</div>
-				<div class="rounded-lg bg-muted px-2 py-2.5">
+				<div class="px-2 py-1">
 					<p class="text-xl font-semibold tabular-nums text-muted-foreground">{ data.Report.Counts.Skipped }</p>
-					<p class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Skipped</p>
+					<p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Skipped</p>
 				</div>
 			</div>
-
-			if failedErrorCount(data.Report) > 0 {
-				<div class="mt-4 flex items-start gap-2 rounded-lg border border-destructive/25 bg-destructive/[0.04] p-3 text-sm">
-					@icon.TriangleAlert(icon.Props{Class: "mt-0.5 size-4 shrink-0 text-destructive"})
-					<p>
-						<span class="font-medium">{ failedErrorCount(data.Report) } error-severity</span>
-						{ attentionText(failedErrorCount(data.Report)) }
+			{{ errors := data.Report.Errors() }}
+			if len(errors) > 0 {
+				<div class="mt-5 border-t pt-4">
+					<p class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+						@icon.TriangleAlert(icon.Props{Class: "size-3.5 text-destructive"})
+						Fix first · { len(errors) } { plural(len(errors), "error", "errors") }
 					</p>
+					<ul class="mt-2 space-y-1.5">
+						for i, result := range errors {
+							if i < 3 {
+								<li>
+									<a
+										href={ templ.SafeURL("#category-" + string(result.Rule.Category)) }
+										class="group/fix flex items-start gap-2 rounded-md py-1 text-sm leading-relaxed text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+									>
+										@icon.ArrowRight(icon.Props{Class: "mt-1 size-3.5 shrink-0 transition-transform group-hover/fix:translate-x-0.5"})
+										<span>{ result.Rule.Title }</span>
+									</a>
+								</li>
+							}
+						}
+					</ul>
+					if len(errors) > 3 {
+						<p class="mt-2 text-xs text-muted-foreground">+ { len(errors) - 3 } more</p>
+					}
 				</div>
 			}
 		}
@@ -153,21 +169,27 @@ templ scoreCard(data ReportData) {
 }
 
 templ categoryCard(data ReportData) {
-	@card.Card(card.Props{Class: "h-full"}) {
+	@card.Card(card.Props{}) {
 		@card.Header(card.HeaderProps{Class: "p-5 pb-3 sm:p-6 sm:pb-3"}) {
 			@card.Title() {
 				Category scores
 			}
 			@card.Description() {
-				Skipped checks are excluded from the weighted score.
+				Skipped checks are excluded. Select a category to jump to its checks.
 			}
 		}
 		@card.Content(card.ContentProps{Class: "p-5 pt-3 sm:p-6 sm:pt-3"}) {
-			<div class="space-y-4">
+			<div class="space-y-1">
 				for _, category := range data.Report.Categories {
-					<div>
+					<a
+						href={ templ.SafeURL("#category-" + string(category.Category)) }
+						class="group/category -mx-2 block rounded-lg px-2 py-2 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+					>
 						<div class="flex items-baseline justify-between gap-3">
-							<span class="text-sm font-medium">{ category.Label }</span>
+							<span class="flex items-center gap-1 text-sm font-medium group-hover/category:text-foreground group-focus-visible/category:text-foreground">
+								{ category.Label }
+								@icon.ChevronRight(icon.Props{Class: "size-3.5 text-muted-foreground/50 transition-all sm:opacity-0 sm:group-hover/category:translate-x-0.5 sm:group-hover/category:opacity-100 sm:group-focus-visible/category:translate-x-0.5 sm:group-focus-visible/category:opacity-100"})
+							</span>
 							if category.Applicable {
 								<span class={ "text-sm font-semibold tabular-nums", scoreTextClass(category.Score) }>{ categoryScoreLabel(category) }<span class="font-normal text-muted-foreground">/100</span></span>
 							} else {
@@ -176,15 +198,14 @@ templ categoryCard(data ReportData) {
 						</div>
 						if category.Applicable {
 							@progress.Progress(progress.Props{
-								Max:     100,
-								Value:   category.Score,
-								Size:    progress.SizeSm,
-								Variant: progressVariant(category.Score),
-								Class:   "mt-1.5",
+								Max:   100,
+								Value: category.Score,
+								Size:  progress.SizeSm,
+								Class: "mt-1.5",
 							})
 						}
 						<p class="mt-1 text-[11px] text-muted-foreground">{ categoryCountsLabel(category) }</p>
-					</div>
+					</a>
 				}
 			</div>
 		}
@@ -199,22 +220,21 @@ templ checklist(data ReportData) {
 				<p class="mt-1 text-sm text-muted-foreground">Failed checks appear first. Expand any check for evidence, rationale, and a concrete fix.</p>
 			</div>
 			<div class="flex flex-wrap gap-1.5">
-				@badge.Badge(badge.Props{Variant: badge.VariantSecondary}) {
+				@badge.Badge(badge.Props{Variant: badge.VariantOutline, Class: "text-muted-foreground"}) {
 					{ data.Report.Counts.Passed } passed
 				}
-				@badge.Badge(badge.Props{Variant: badge.VariantDestructive}) {
+				@badge.Badge(badge.Props{Variant: badge.VariantOutline, Class: "border-destructive/25 text-destructive"}) {
 					{ data.Report.Counts.Failed } failed
 				}
-				@badge.Badge(badge.Props{Variant: badge.VariantOutline}) {
+				@badge.Badge(badge.Props{Variant: badge.VariantOutline, Class: "text-muted-foreground"}) {
 					{ data.Report.Counts.Skipped } skipped
 				}
 			</div>
 		</div>
-
 		<div class="space-y-7">
 			for _, category := range rules.Categories() {
 				if len(data.Report.ResultsFor(category)) > 0 {
-					<section>
+					<section id={ "category-" + string(category) } class="scroll-mt-20">
 						<div class="mb-2 flex flex-wrap items-center justify-between gap-2">
 							<h3 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{ rules.CategoryLabel(category) }</h3>
 							<span class="text-xs text-muted-foreground">{ categoryAnchorLabel(data, category) }</span>
@@ -240,7 +260,9 @@ templ resultRow(result rules.Result) {
 			<div class="min-w-0 flex-1">
 				<div class="flex flex-wrap items-center gap-2">
 					<span class="text-sm font-medium">{ result.Rule.Title }</span>
-					<span class={ "rounded-full px-2 py-0.5 text-[11px] font-medium", statusPillClass(result.Status) }>{ statusLabel(result.Status) }</span>
+					@badge.Badge(badge.Props{Variant: badge.VariantOutline, Class: statusPillClass(result.Status)}) {
+						{ statusLabel(result.Status) }
+					}
 					@badge.Badge(badge.Props{Variant: badge.VariantOutline, Class: severityClass(result.EffectiveSeverity())}) {
 						{ severityLabel(result.EffectiveSeverity()) }
 					}
@@ -251,36 +273,48 @@ templ resultRow(result rules.Result) {
 		</summary>
 		<div class="border-t px-4 pb-4 pt-3">
 			<p class="text-sm leading-relaxed">{ checkStatusSummary(result) }</p>
-
 			if len(result.Evidence) > 0 {
-				<div class="mt-3 rounded-md bg-muted/50 p-3">
-					<p class="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Evidence</p>
-					<ul class="space-y-1">
-						for _, evidence := range result.Evidence {
-							<li class="break-words font-mono text-xs leading-relaxed text-muted-foreground">{ evidence }</li>
+				@card.Card(card.Props{Class: "mt-3 bg-muted/30 shadow-none"}) {
+					@card.Header(card.HeaderProps{Class: "p-3 pb-0"}) {
+						@card.Title(card.TitleProps{Class: "flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground"}) {
+							@icon.Search(icon.Props{Class: "size-3.5"})
+							Evidence
 						}
-					</ul>
-				</div>
+					}
+					@card.Content(card.ContentProps{Class: "p-3 pt-2"}) {
+						<p class="text-sm leading-relaxed text-muted-foreground">What the check found in the fetched repository data and README:</p>
+						<ul class="mt-2 space-y-1">
+							for _, evidence := range result.Evidence {
+								<li class="break-words font-mono text-sm leading-relaxed text-muted-foreground">{ evidence }</li>
+							}
+						</ul>
+					}
+				}
 			}
-
 			if result.Status != rules.StatusPass {
 				<div class="mt-3 grid gap-2 sm:grid-cols-2">
-					<details class="group/why rounded-md border bg-background/60">
-						<summary class="flex cursor-pointer list-none items-center gap-2 p-3 text-xs font-medium outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
-							@icon.Lightbulb(icon.Props{Class: "size-3.5 text-amber-600 dark:text-amber-400"})
-							<span>Why it matters</span>
-							@icon.ChevronDown(icon.Props{Class: "ml-auto size-3.5 text-muted-foreground transition-transform group-open/why:rotate-180"})
-						</summary>
-						<p class="border-t px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">{ result.Rule.Why }</p>
-					</details>
-					<details class="group/fix rounded-md border bg-background/60">
-						<summary class="flex cursor-pointer list-none items-center gap-2 p-3 text-xs font-medium outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
-							@icon.Wrench(icon.Props{Class: "size-3.5 text-emerald-600 dark:text-emerald-400"})
-							<span>How to fix</span>
-							@icon.ChevronDown(icon.Props{Class: "ml-auto size-3.5 text-muted-foreground transition-transform group-open/fix:rotate-180"})
-						</summary>
-						<p class="border-t px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">{ result.Rule.Fix }</p>
-					</details>
+					@card.Card(card.Props{Class: "bg-muted/30 shadow-none"}) {
+						@card.Header(card.HeaderProps{Class: "p-3 pb-0"}) {
+							@card.Title(card.TitleProps{Class: "flex items-center gap-2 text-sm font-medium text-foreground"}) {
+								@icon.Lightbulb(icon.Props{Class: "size-3.5 text-amber-700 dark:text-amber-400"})
+								<span>Why it matters</span>
+							}
+						}
+						@card.Content(card.ContentProps{Class: "p-3 pt-2"}) {
+							<p class="text-sm leading-relaxed text-muted-foreground">{ result.Rule.Why }</p>
+						}
+					}
+					@card.Card(card.Props{Class: "bg-muted/30 shadow-none"}) {
+						@card.Header(card.HeaderProps{Class: "p-3 pb-0"}) {
+							@card.Title(card.TitleProps{Class: "flex items-center gap-2 text-sm font-medium text-foreground"}) {
+								@icon.Wrench(icon.Props{Class: "size-3.5 text-emerald-700 dark:text-emerald-400"})
+								<span>How to fix</span>
+							}
+						}
+						@card.Content(card.ContentProps{Class: "p-3 pt-2"}) {
+							<p class="text-sm leading-relaxed text-muted-foreground">{ result.Rule.Fix }</p>
+						}
+					}
 				</div>
 			}
 		</div>

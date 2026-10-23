@@ -3,14 +3,17 @@ package views
 import (
 	"readmecheck/components/button"
 	"readmecheck/components/copybutton"
+	"readmecheck/components/dialog"
 	"readmecheck/components/icon"
 	"readmecheck/components/input"
 	"readmecheck/components/progress"
+	"readmecheck/components/tabs"
 )
 
 type LayoutData struct {
-	Title  string
-	Active string
+	Title      string
+	Active     string
+	HideFooter bool
 }
 
 templ Layout(data LayoutData) {
@@ -34,13 +37,17 @@ templ Layout(data LayoutData) {
 			@input.Script()
 			@progress.Script()
 			@copybutton.Script()
+			@dialog.Script()
+			@tabs.Script()
 		</head>
 		<body class="min-h-dvh antialiased">
 			@siteHeader(data.Active)
 			<main id="content">
 				{ children... }
 			</main>
-			@siteFooter()
+			if !data.HideFooter {
+				@siteFooter()
+			}
 			<script>
 				document.addEventListener("click", function (event) {
 					const toggle = event.target.closest("[data-theme-toggle]");

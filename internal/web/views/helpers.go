@@ -9,7 +9,6 @@ import (
 
 	"readmecheck/components/badge"
 	"readmecheck/components/icon"
-	"readmecheck/components/progress"
 	"readmecheck/internal/github"
 	"readmecheck/internal/rules"
 )
@@ -123,17 +122,17 @@ func statusIconClass(status rules.Status) string {
 func statusPillClass(status rules.Status) string {
 	switch status {
 	case rules.StatusPass:
-		return "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+		return "border-emerald-700/25 text-emerald-700 dark:text-emerald-400"
 	case rules.StatusFail:
-		return "bg-destructive/10 text-destructive"
+		return "border-destructive/25 text-destructive"
 	default:
-		return "bg-muted text-muted-foreground"
+		return "text-muted-foreground"
 	}
 }
 
 func statusItemClass(status rules.Status) string {
 	if status == rules.StatusFail {
-		return "border-destructive/25 bg-destructive/[0.02]"
+		return "border-destructive/25"
 	}
 	return ""
 }
@@ -156,6 +155,17 @@ func severityClass(severity rules.Severity) string {
 	}
 }
 
+func severityDotClass(severity rules.Severity) string {
+	switch severity {
+	case rules.SeverityError:
+		return "bg-destructive"
+	case rules.SeverityWarning:
+		return "bg-amber-500"
+	default:
+		return "bg-primary"
+	}
+}
+
 func scoreTextClass(score int) string {
 	switch {
 	case score >= 90:
@@ -168,14 +178,7 @@ func scoreTextClass(score int) string {
 }
 
 func gradePanelClass(score int) string {
-	switch {
-	case score >= 90:
-		return "border-emerald-500/30 bg-emerald-500/[0.06]"
-	case score >= 70:
-		return "border-amber-500/30 bg-amber-500/[0.06]"
-	default:
-		return "border-destructive/30 bg-destructive/[0.05]"
-	}
+	return "bg-muted/50"
 }
 
 func gradeDescription(grade string) string {
@@ -190,17 +193,6 @@ func gradeDescription(grade string) string {
 		return "Weak. New visitors will struggle to understand, install, or trust the project."
 	default:
 		return "Critical gaps. Start with the failed error-severity checks below."
-	}
-}
-
-func progressVariant(score int) progress.Variant {
-	switch {
-	case score >= 90:
-		return progress.VariantSuccess
-	case score >= 70:
-		return progress.VariantWarning
-	default:
-		return progress.VariantDanger
 	}
 }
 
@@ -245,15 +237,11 @@ func gradeScore(grade string) int {
 	}
 }
 
-func failedErrorCount(report rules.Report) int {
-	return len(report.Errors())
-}
-
-func attentionText(count int) string {
+func plural(count int, singular, plural string) string {
 	if count == 1 {
-		return " check needs attention first."
+		return singular
 	}
-	return " checks need attention first."
+	return plural
 }
 
 func resultSubtitle(result rules.Result) string {

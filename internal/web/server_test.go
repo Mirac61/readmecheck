@@ -31,6 +31,10 @@ func TestHomePage(t *testing.T) {
 		`id="external-links"`,
 		`name="external"`,
 		"23 rules",
+		"data-tui-dialog-trigger",
+		`data-tui-dialog-target="rules-dialog"`,
+		`id="rules-dialog"`,
+		"Details",
 		`id="results"`,
 		`id="check-loading"`,
 	} {
