@@ -173,3 +173,34 @@ func TestHTTPLinkCheckerMaxLinks(t *testing.T) {
 		t.Fatalf("results = %+v", results)
 	}
 }
+
+func TestIsLocalLink(t *testing.T) {
+	t.Parallel()
+	cases := map[string]bool{
+		"http://localhost:8080":         true,
+		"https://localhost/path?x=1":    true,
+		"http://LOCALHOST.:3000":        true,
+		"http://app.localhost:5173":     true,
+		"http://127.0.0.1:8080/report":  true,
+		"http://[::1]:9000":             true,
+		"http://0.0.0.0:8000":           true,
+		"http://192.168.178.39":         true,
+		"http://10.8.0.4:2222":          true,
+		"http://172.16.5.1":             true,
+		"http://169.254.1.1":            true,
+		"http://printer.local":          true,
+		"http://db.internal":            true,
+		"https://github.com/owner/repo": false,
+		"https://example.com/localhost": false,
+		"https://localhost.example.com": false,
+		"http://8.8.8.8":                false,
+		"http://172.32.0.1":             false,
+		"mailto:someone@example.com":    false,
+		"not a url at all %%":           false,
+	}
+	for raw, want := range cases {
+		if got := isLocalLink(raw); got != want {
+			t.Errorf("isLocalLink(%q) = %v, want %v", raw, got, want)
+		}
+	}
+}

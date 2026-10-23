@@ -227,7 +227,10 @@ concurrent workers, a five-second per-link timeout, and a 50-link cap. A HEAD
 request is used first with a GET fallback for 403/405/501 responses. Statuses
 2xx/3xx are reachable; 401, 403, and 429 count as reachable but restricted
 because the host answered. 404/410, other 4xx, 5xx, and network failures count
-as unreachable. The result lists sample failures. Source: link-checking is an
+as unreachable. Links to `localhost`, loopback and private-network addresses,
+`.local`, and `.internal` hosts are documentation of a local setup, not dead
+pages, so they are skipped and counted in the result detail. The result lists
+sample failures. Source: link-checking is an
 operational practice rather than a README style rule.
 
 ## Deliberate exclusions

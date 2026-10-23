@@ -476,3 +476,56 @@ func expectStatus(t *testing.T, report Report, id string, want Status) {
 		t.Errorf("%s status = %q, want %q (detail: %s, evidence: %v)", id, result.Status, want, result.Detail, result.Evidence)
 	}
 }
+
+func TestExternalLinkRuleSkipsLocalLinks(t *testing.T) {
+	t.Parallel()
+	repository := repositoryFixture(t, "good.md")
+	repository.Readme.Content = append(repository.Readme.Content,
+		[]byte("\n\nOpen [the app](http://localhost:8080) or [127.0.0.1](http://127.0.0.1:8080/report).\n")...)
+
+	checked := map[string]bool{}
+	report := Analyze(context.Background(), repository, Options{
+		CheckExternalLinks: true,
+		LinkChecker:        recordingLinkChecker{seen: checked},
+	})
+	result := resultByID(t, report, "external-links")
+	if result.Status != StatusPass {
+		t.Fatalf("external-links = %+v", result)
+	}
+	if !strings.Contains(result.Detail, "2 local links") {
+		t.Errorf("detail = %q, want a note about 2 skipped local links", result.Detail)
+	}
+	for target := range checked {
+		if strings.Contains(target, "localhost") || strings.Contains(target, "127.0.0.1") {
+			t.Errorf("local link %q was sent to the checker", target)
+		}
+	}
+	if len(checked) == 0 {
+		t.Error("public links were not checked")
+	}
+}
+
+func TestExternalLinkRuleOnlyLocalLinks(t *testing.T) {
+	t.Parallel()
+	repository := repositoryFixture(t, "good.md")
+	repository.Readme.Content = []byte("# Demo\n\nRun it, then open [localhost](http://localhost:8080).\n")
+	report := Analyze(context.Background(), repository, Options{
+		CheckExternalLinks: true,
+		LinkChecker:        recordingLinkChecker{seen: map[string]bool{}},
+	})
+	result := resultByID(t, report, "external-links")
+	if result.Status != StatusPass || !strings.Contains(result.Detail, "1 local link") {
+		t.Fatalf("external-links = %+v", result)
+	}
+}
+
+type recordingLinkChecker struct{ seen map[string]bool }
+
+func (r recordingLinkChecker) Check(_ context.Context, urls []string) []LinkCheck {
+	results := make([]LinkCheck, 0, len(urls))
+	for _, target := range urls {
+		r.seen[target] = true
+		results = append(results, LinkCheck{URL: target, OK: true, StatusCode: 200})
+	}
+	return results
+}

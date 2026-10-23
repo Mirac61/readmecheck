@@ -688,8 +688,20 @@ func checkExternalLinks(ctx context.Context, input Input, options Options) Resul
 		return passed("No external links to check.")
 	}
 	urls := make([]string, 0, len(links))
+	local := 0
 	for _, link := range links {
+		if isLocalLink(link.Destination) {
+			local++
+			continue
+		}
 		urls = append(urls, link.Destination)
+	}
+	localNote := ""
+	if local > 0 {
+		localNote = fmt.Sprintf(" %d local %s (localhost or private network) %s skipped.", local, plural(local, "link", "links"), pluralVerb(local))
+	}
+	if len(urls) == 0 {
+		return passed("No public external links to check." + localNote)
 	}
 	capped := 0
 	if len(urls) > DefaultMaxLinkChecks {
@@ -716,13 +728,14 @@ func checkExternalLinks(ctx context.Context, input Input, options Options) Resul
 		if capped > 0 {
 			detail += fmt.Sprintf(" %d additional links were not checked.", capped)
 		}
+		detail += localNote
 		return failed(detail, limitEvidence(evidence, 6)...)
 	}
 	detail := fmt.Sprintf("All %d external links were reachable.", len(urls))
 	if capped > 0 {
 		detail += fmt.Sprintf(" %d additional links were not checked.", capped)
 	}
-	return passed(detail)
+	return passed(detail + localNote)
 }
 
 func firstMatchingHeading(document markdown.Document, keywords []string) (markdown.Heading, bool) {
@@ -867,4 +880,18 @@ func limitEvidence(values []string, limit int) []string {
 	result := append([]string(nil), values[:limit]...)
 	result = append(result, fmt.Sprintf("…and %d more.", len(values)-limit))
 	return result
+}
+
+func plural(count int, singular, many string) string {
+	if count == 1 {
+		return singular
+	}
+	return many
+}
+
+func pluralVerb(count int) string {
+	if count == 1 {
+		return "was"
+	}
+	return "were"
 }

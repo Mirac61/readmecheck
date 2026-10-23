@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 )
@@ -253,4 +254,29 @@ func (l LinkCheck) String() string {
 		return fmt.Sprintf("%s: HTTP %d", l.URL, l.StatusCode)
 	}
 	return l.URL
+}
+
+// isLocalLink reports whether a link points at the machine or network the
+// README's author is describing rather than at a public page. READMEs often
+// say "open http://localhost:8080"; such links cannot be verified from here
+// and are not dead, so they are left out of the external link check.
+func isLocalLink(raw string) bool {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(strings.TrimSuffix(parsed.Hostname(), "."))
+	if host == "" {
+		return false
+	}
+	if host == "localhost" || strings.HasSuffix(host, ".localhost") ||
+		strings.HasSuffix(host, ".local") || strings.HasSuffix(host, ".internal") {
+		return true
+	}
+	address, err := netip.ParseAddr(host)
+	if err != nil {
+		return false
+	}
+	address = address.Unmap()
+	return address.IsLoopback() || address.IsPrivate() || address.IsLinkLocalUnicast() || address.IsUnspecified()
 }
