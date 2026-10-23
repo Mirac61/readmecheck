@@ -111,7 +111,7 @@ func statusLabel(status rules.Status) string {
 func statusIconClass(status rules.Status) string {
 	switch status {
 	case rules.StatusPass:
-		return "size-5 text-emerald-600 dark:text-emerald-400"
+		return "size-5 text-emerald-700 dark:text-emerald-400"
 	case rules.StatusFail:
 		return "size-5 text-destructive"
 	default:
@@ -122,18 +122,15 @@ func statusIconClass(status rules.Status) string {
 func statusPillClass(status rules.Status) string {
 	switch status {
 	case rules.StatusPass:
-		return "border-emerald-700/25 text-emerald-700 dark:text-emerald-400"
+		return "border-emerald-700/20 text-emerald-700 dark:border-emerald-400/25 dark:text-emerald-400"
 	case rules.StatusFail:
-		return "border-destructive/25 text-destructive"
+		return "border-destructive/20 text-destructive"
 	default:
 		return "text-muted-foreground"
 	}
 }
 
 func statusItemClass(status rules.Status) string {
-	if status == rules.StatusFail {
-		return "border-destructive/25"
-	}
 	return ""
 }
 
@@ -147,9 +144,9 @@ func severityLabel(severity rules.Severity) string {
 func severityClass(severity rules.Severity) string {
 	switch severity {
 	case rules.SeverityError:
-		return "border-destructive/30 text-destructive"
+		return "border-destructive/25 text-destructive"
 	case rules.SeverityWarning:
-		return "border-amber-500/40 text-amber-700 dark:text-amber-400"
+		return "border-amber-600/30 text-amber-700 dark:text-amber-400"
 	default:
 		return "text-muted-foreground"
 	}
@@ -160,7 +157,7 @@ func severityDotClass(severity rules.Severity) string {
 	case rules.SeverityError:
 		return "bg-destructive"
 	case rules.SeverityWarning:
-		return "bg-amber-500"
+		return "bg-amber-600 dark:bg-amber-400"
 	default:
 		return "bg-primary"
 	}
@@ -169,9 +166,9 @@ func severityDotClass(severity rules.Severity) string {
 func scoreTextClass(score int) string {
 	switch {
 	case score >= 90:
-		return "text-emerald-600 dark:text-emerald-400"
+		return "text-emerald-700 dark:text-emerald-400"
 	case score >= 70:
-		return "text-amber-600 dark:text-amber-400"
+		return "text-amber-700 dark:text-amber-400"
 	default:
 		return "text-destructive"
 	}

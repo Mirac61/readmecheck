@@ -80,11 +80,11 @@ templ historyRow(check CheckSummary) {
 		}
 		@table.Cell(cellClass()) {
 			if check.ExternalLinks {
-				@badge.Badge(badge.Props{Variant: badge.VariantSecondary, Class: "text-[11px]"}) {
+				@badge.Badge(badge.Props{Variant: badge.VariantOutline, Class: "text-[11px]"}) {
 					checked
 				}
 			} else {
-				@badge.Badge(badge.Props{Variant: badge.VariantOutline, Class: "text-[11px]"}) {
+				@badge.Badge(badge.Props{Variant: badge.VariantOutline, Class: "text-[11px] text-muted-foreground"}) {
 					skipped
 				}
 			}
@@ -153,7 +153,7 @@ templ gradeBadge(grade string) {
 templ emptyHistory() {
 	@card.Card(card.Props{Class: "mt-6"}) {
 		@card.Content(card.ContentProps{Class: "flex flex-col items-center px-6 py-14 text-center"}) {
-			<div class="flex size-12 items-center justify-center rounded-xl bg-secondary text-secondary-foreground">
+			<div class="flex size-12 items-center justify-center rounded-xl bg-muted text-muted-foreground">
 				@icon.Clock(icon.Props{Class: "size-6"})
 			</div>
 			<h2 class="mt-4 text-lg font-semibold">No checks yet</h2>
