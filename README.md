@@ -138,18 +138,9 @@ The complete list of rules, weights, rationales, and sources is in [docs/criteri
 
 readmecheck deliberately uses the Go standard library for HTTP routing and handlers. The GitHub client fetches metadata, the README, the root listing, workflows, the latest release, and a recursive file tree concurrently. The Markdown package builds a small document model with goldmark, the rule engine scores the model, and the templ views render the result.
 
-```mermaid
-flowchart LR
-    Browser["Browser + htmx"] --> Web["internal/web"]
-    Web --> GitHub["internal/github"]
-    Web --> Rules["internal/rules"]
-    Web --> Store["internal/store (SQLite)"]
-    GitHub --> API["GitHub REST API"]
-    Rules --> Markdown["internal/markdown (goldmark)"]
-    Rules --> Links["External link checker"]
-    Rules --> Web
-    Store --> Web
-```
+![Container diagram: a developer uses the readmecheck server, which reads and writes a SQLite history database and calls the GitHub REST API and external websites](docs/architecture/containers.png)
+
+The diagram is generated from the [Structurizr model](docs/architecture/workspace.dsl). The [component diagram](docs/architecture/components.png) zooms into the Go server and shows how the packages collaborate; the [system context diagram](docs/architecture/system-context.png) shows the external boundaries. All views and regeneration notes are in [docs/architecture](docs/architecture/README.md).
 
 The rule engine exposes a small `Analyzer` interface for future non-deterministic extensions. No implementation is included: readmecheck's built-in reports remain fully rule-based and reproducible.
 
