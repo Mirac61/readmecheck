@@ -10,7 +10,7 @@ import (
 
 templ History(data HistoryData) {
 	@Layout(LayoutData{Title: "History", Active: "history"}) {
-		<div class="mx-auto max-w-6xl px-4 py-8 sm:py-10">
+		<div class="mx-auto w-full max-w-[110rem] flex-1 px-4 py-8 sm:px-6 sm:py-10 lg:px-10">
 			<div class="flex flex-wrap items-end justify-between gap-3">
 				<div>
 					<h1 class="text-2xl font-bold tracking-tight sm:text-3xl">Check history</h1>
@@ -21,7 +21,6 @@ templ History(data HistoryData) {
 					New check
 				}
 			</div>
-
 			if data.Error != "" {
 				<div class="mt-5">
 					@ErrorAlert("History unavailable", data.Error)
@@ -34,12 +33,24 @@ templ History(data HistoryData) {
 						@table.Table() {
 							@table.Header() {
 								@table.Row() {
-									@table.Head() { Repository }
-									@table.Head(headClass()) { Score }
-									@table.Head(headClass()) { Grade }
-									@table.Head(headClass()) { Checked }
-									@table.Head(headClass()) { Links }
-									@table.Head(headClass()) { "" }
+									@table.Head() {
+										Repository 
+									}
+									@table.Head(headClass()) {
+										Score 
+									}
+									@table.Head(headClass()) {
+										Grade 
+									}
+									@table.Head(headClass()) {
+										Checked 
+									}
+									@table.Head(headClass()) {
+										Links 
+									}
+									@table.Head(headClass()) {
+										<span class="sr-only">Actions</span>
+									}
 								}
 							}
 							@table.Body() {
@@ -65,26 +76,26 @@ templ historyRow(check CheckSummary) {
 		@table.Cell() {
 			<a href={ templ.SafeURL(historyPath(check.Path, check.ExternalLinks)) } class="font-medium hover:underline">{ check.Repository }</a>
 			if check.Description != "" {
-				<p class="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{ check.Description }</p>
+				<p class="mt-0.5 line-clamp-1 text-sm text-muted-foreground">{ check.Description }</p>
 			}
 		}
 		@table.Cell(cellClass()) {
 			<span class={ "font-semibold tabular-nums", scoreTextClass(check.Score) }>{ check.Score }</span>
-			<span class="text-xs text-muted-foreground">/100</span>
+			<span class="text-sm text-muted-foreground">/100</span>
 		}
 		@table.Cell(cellClass()) {
 			@gradeBadge(check.Grade)
 		}
 		@table.Cell(cellClass()) {
-			<span class="text-xs text-muted-foreground">{ formatDate(check.CheckedAt) }</span>
+			<span class="text-sm text-muted-foreground">{ formatDate(check.CheckedAt) }</span>
 		}
 		@table.Cell(cellClass()) {
 			if check.ExternalLinks {
-				@badge.Badge(badge.Props{Variant: badge.VariantOutline, Class: "text-[11px]"}) {
+				@badge.Badge(badge.Props{Variant: badge.VariantOutline, Class: "text-sm"}) {
 					checked
 				}
 			} else {
-				@badge.Badge(badge.Props{Variant: badge.VariantOutline, Class: "text-[11px] text-muted-foreground"}) {
+				@badge.Badge(badge.Props{Variant: badge.VariantOutline, Class: "text-sm text-muted-foreground"}) {
 					skipped
 				}
 			}
@@ -109,7 +120,7 @@ templ historyCard(check CheckSummary) {
 				<div class="min-w-0">
 					<a href={ templ.SafeURL(historyPath(check.Path, check.ExternalLinks)) } class="font-medium hover:underline">{ check.Repository }</a>
 					if check.Description != "" {
-						<p class="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{ check.Description }</p>
+						<p class="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{ check.Description }</p>
 					}
 				</div>
 				@gradeBadge(check.Grade)
@@ -117,19 +128,19 @@ templ historyCard(check CheckSummary) {
 			<div class="mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
 				<div class="flex items-center gap-2">
 					<span class={ "text-lg font-semibold tabular-nums", scoreTextClass(check.Score) }>{ check.Score }</span>
-					<span class="text-xs text-muted-foreground">/100</span>
+					<span class="text-sm text-muted-foreground">/100</span>
 					if check.ExternalLinks {
-						@badge.Badge(badge.Props{Variant: badge.VariantOutline, Class: "text-[11px]"}) {
+						@badge.Badge(badge.Props{Variant: badge.VariantOutline, Class: "text-sm"}) {
 							links
 						}
 					} else {
-						@badge.Badge(badge.Props{Variant: badge.VariantOutline, Class: "text-[11px]"}) {
+						@badge.Badge(badge.Props{Variant: badge.VariantOutline, Class: "text-sm"}) {
 							no links
 						}
 					}
 				</div>
 				<div class="flex items-center gap-2">
-					<span class="text-[11px] text-muted-foreground">{ formatDate(check.CheckedAt) }</span>
+					<span class="text-sm text-muted-foreground">{ formatDate(check.CheckedAt) }</span>
 					@button.Button(button.Props{
 						Href:    historyPath(check.Path, check.ExternalLinks),
 						Variant: button.VariantOutline,

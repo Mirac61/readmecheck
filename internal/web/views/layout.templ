@@ -2,6 +2,7 @@ package views
 
 import (
 	"readmecheck/components/button"
+	"readmecheck/components/chart"
 	"readmecheck/components/copybutton"
 	"readmecheck/components/dialog"
 	"readmecheck/components/icon"
@@ -39,10 +40,11 @@ templ Layout(data LayoutData) {
 			@copybutton.Script()
 			@dialog.Script()
 			@tabs.Script()
+			@chart.Script()
 		</head>
-		<body class="min-h-dvh antialiased">
+		<body class="flex min-h-dvh flex-col antialiased">
 			@siteHeader(data.Active)
-			<main id="content">
+			<main id="content" class="flex flex-1 flex-col">
 				{ children... }
 			</main>
 			if !data.HideFooter {
@@ -72,6 +74,16 @@ templ Layout(data LayoutData) {
 					link.remove();
 					setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
 				});
+
+				document.addEventListener("htmx:afterSwap", function (event) {
+					const target = event.detail && event.detail.target ? event.detail.target : event.target;
+					if (!target || target.id !== "results") return;
+					const cards = document.getElementById("feature-cards");
+					if (cards && target.querySelector("#report")) {
+						cards.classList.add("hidden");
+					}
+					target.scrollIntoView({ behavior: "smooth", block: "start" });
+				});
 			</script>
 		</body>
 	</html>
@@ -79,7 +91,7 @@ templ Layout(data LayoutData) {
 
 templ siteHeader(active string) {
 	<header class="sticky top-0 z-40 border-b bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
-		<div class="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4">
+		<div class="mx-auto flex h-14 w-full max-w-[110rem] items-center justify-between gap-4 px-4 sm:px-6 lg:px-10">
 			<a href="/" class="flex items-center gap-2 font-semibold tracking-tight">
 				<span class="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
 					@icon.ListChecks(icon.Props{Class: "size-4"})
@@ -106,8 +118,8 @@ templ navLink(href, label string, active bool) {
 }
 
 templ siteFooter() {
-	<footer class="mt-16 border-t">
-		<div class="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-8 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+	<footer class="mt-auto border-t">
+		<div class="mx-auto flex w-full max-w-[110rem] flex-col gap-2 px-4 py-6 sm:px-6 lg:px-10 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
 			<p>readmecheck · deterministic README reviews</p>
 			<p>
 				Built with Go, templ, templUI, and htmx.

@@ -10,6 +10,7 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"readmecheck/components/button"
+	"readmecheck/components/chart"
 	"readmecheck/components/copybutton"
 	"readmecheck/components/dialog"
 	"readmecheck/components/icon"
@@ -52,7 +53,7 @@ func Layout(data LayoutData) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(data.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/layout.templ`, Line: 26, Col: 22}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/layout.templ`, Line: 27, Col: 22}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -82,7 +83,11 @@ func Layout(data LayoutData) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</head><body class=\"min-h-dvh antialiased\">")
+		templ_7745c5c3_Err = chart.Script().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</head><body class=\"flex min-h-dvh flex-col antialiased\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -90,7 +95,7 @@ func Layout(data LayoutData) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<main id=\"content\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<main id=\"content\" class=\"flex flex-1 flex-col\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -108,7 +113,7 @@ func Layout(data LayoutData) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<script>\n\t\t\t\tdocument.addEventListener(\"click\", function (event) {\n\t\t\t\t\tconst toggle = event.target.closest(\"[data-theme-toggle]\");\n\t\t\t\t\tif (!toggle) return;\n\t\t\t\t\tconst isDark = document.documentElement.classList.toggle(\"dark\");\n\t\t\t\t\tlocalStorage.setItem(\"readmecheck-theme\", isDark ? \"dark\" : \"light\");\n\t\t\t\t});\n\n\t\t\t\tdocument.addEventListener(\"click\", function (event) {\n\t\t\t\t\tconst button = event.target.closest(\"[data-download-report]\");\n\t\t\t\t\tif (!button) return;\n\t\t\t\t\tconst target = document.getElementById(button.dataset.targetId);\n\t\t\t\t\tif (!target) return;\n\t\t\t\t\tconst markdown = target.value !== undefined ? target.value : target.textContent || \"\";\n\t\t\t\t\tconst blob = new Blob([markdown], { type: \"text/markdown;charset=utf-8\" });\n\t\t\t\t\tconst url = URL.createObjectURL(blob);\n\t\t\t\t\tconst link = document.createElement(\"a\");\n\t\t\t\t\tlink.href = url;\n\t\t\t\t\tlink.download = button.dataset.filename || \"readmecheck-report.md\";\n\t\t\t\t\tdocument.body.appendChild(link);\n\t\t\t\t\tlink.click();\n\t\t\t\t\tlink.remove();\n\t\t\t\t\tsetTimeout(function () { URL.revokeObjectURL(url); }, 1000);\n\t\t\t\t});\n\t\t\t</script></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<script>\n\t\t\t\tdocument.addEventListener(\"click\", function (event) {\n\t\t\t\t\tconst toggle = event.target.closest(\"[data-theme-toggle]\");\n\t\t\t\t\tif (!toggle) return;\n\t\t\t\t\tconst isDark = document.documentElement.classList.toggle(\"dark\");\n\t\t\t\t\tlocalStorage.setItem(\"readmecheck-theme\", isDark ? \"dark\" : \"light\");\n\t\t\t\t});\n\n\t\t\t\tdocument.addEventListener(\"click\", function (event) {\n\t\t\t\t\tconst button = event.target.closest(\"[data-download-report]\");\n\t\t\t\t\tif (!button) return;\n\t\t\t\t\tconst target = document.getElementById(button.dataset.targetId);\n\t\t\t\t\tif (!target) return;\n\t\t\t\t\tconst markdown = target.value !== undefined ? target.value : target.textContent || \"\";\n\t\t\t\t\tconst blob = new Blob([markdown], { type: \"text/markdown;charset=utf-8\" });\n\t\t\t\t\tconst url = URL.createObjectURL(blob);\n\t\t\t\t\tconst link = document.createElement(\"a\");\n\t\t\t\t\tlink.href = url;\n\t\t\t\t\tlink.download = button.dataset.filename || \"readmecheck-report.md\";\n\t\t\t\t\tdocument.body.appendChild(link);\n\t\t\t\t\tlink.click();\n\t\t\t\t\tlink.remove();\n\t\t\t\t\tsetTimeout(function () { URL.revokeObjectURL(url); }, 1000);\n\t\t\t\t});\n\n\t\t\t\tdocument.addEventListener(\"htmx:afterSwap\", function (event) {\n\t\t\t\t\tconst target = event.detail && event.detail.target ? event.detail.target : event.target;\n\t\t\t\t\tif (!target || target.id !== \"results\") return;\n\t\t\t\t\tconst cards = document.getElementById(\"feature-cards\");\n\t\t\t\t\tif (cards && target.querySelector(\"#report\")) {\n\t\t\t\t\t\tcards.classList.add(\"hidden\");\n\t\t\t\t\t}\n\t\t\t\t\ttarget.scrollIntoView({ behavior: \"smooth\", block: \"start\" });\n\t\t\t\t});\n\t\t\t</script></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -137,7 +142,7 @@ func siteHeader(active string) templ.Component {
 			templ_7745c5c3_Var3 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<header class=\"sticky top-0 z-40 border-b bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70\"><div class=\"mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4\"><a href=\"/\" class=\"flex items-center gap-2 font-semibold tracking-tight\"><span class=\"flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<header class=\"sticky top-0 z-40 border-b bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70\"><div class=\"mx-auto flex h-14 w-full max-w-[110rem] items-center justify-between gap-4 px-4 sm:px-6 lg:px-10\"><a href=\"/\" class=\"flex items-center gap-2 font-semibold tracking-tight\"><span class=\"flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -224,7 +229,7 @@ func navLink(href, label string, active bool) templ.Component {
 		var templ_7745c5c3_Var7 templ.SafeURL
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(href))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/layout.templ`, Line: 103, Col: 28}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/layout.templ`, Line: 115, Col: 28}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -250,7 +255,7 @@ func navLink(href, label string, active bool) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/layout.templ`, Line: 105, Col: 9}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/layout.templ`, Line: 117, Col: 9}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
@@ -285,7 +290,7 @@ func siteFooter() templ.Component {
 			templ_7745c5c3_Var10 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<footer class=\"mt-16 border-t\"><div class=\"mx-auto flex max-w-6xl flex-col gap-2 px-4 py-8 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between\"><p>readmecheck · deterministic README reviews</p><p>Built with Go, templ, templUI, and htmx.</p></div></footer>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<footer class=\"mt-auto border-t\"><div class=\"mx-auto flex w-full max-w-[110rem] flex-col gap-2 px-4 py-6 sm:px-6 lg:px-10 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between\"><p>readmecheck · deterministic README reviews</p><p>Built with Go, templ, templUI, and htmx.</p></div></footer>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

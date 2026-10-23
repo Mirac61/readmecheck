@@ -1,9 +1,11 @@
 package views
 
 import (
+	"fmt"
 	"readmecheck/components/badge"
 	"readmecheck/components/button"
 	"readmecheck/components/card"
+	"readmecheck/components/chart"
 	"readmecheck/components/copybutton"
 	"readmecheck/components/icon"
 	"readmecheck/components/progress"
@@ -13,15 +15,13 @@ import (
 // ReportPage is the full-page report used for direct links and re-runs.
 templ ReportPage(data ReportData) {
 	@Layout(LayoutData{Title: reportTitle(data.Report), Active: "home"}) {
-		<div class="mx-auto max-w-6xl px-4 py-8 sm:py-10">
+		<div class="mx-auto w-full max-w-[110rem] px-4 py-8 sm:px-6 sm:py-10 lg:px-10 mb-12">
 			<div class="mb-5 flex flex-wrap items-center justify-between gap-3">
 				@button.Button(button.Props{Href: "/", Variant: button.VariantGhost, Size: button.SizeSm, Class: "-ml-2"}) {
 					@icon.ArrowLeft(icon.Props{Class: "size-4"})
 					Check another repository
 				}
-				<p class="text-xs text-muted-foreground">
-					Audited { formatDate(data.Report.GeneratedAt) }
-				</p>
+				@reportActions(data)
 			</div>
 			@reportContent(data)
 		</div>
@@ -30,6 +30,9 @@ templ ReportPage(data ReportData) {
 
 // ReportResult is the htmx fragment swapped in below the check form.
 templ ReportResult(data ReportData) {
+	<div class="mb-4 flex justify-end">
+		@reportActions(data)
+	</div>
 	@reportContent(data)
 }
 
@@ -40,8 +43,8 @@ templ reportContent(data ReportData) {
 			@scoreCard(data)
 			@categoryCard(data)
 		</div>
+		@analyticsCard(data)
 		@checklist(data)
-		@exportCard(data)
 	</div>
 }
 
@@ -68,6 +71,15 @@ templ reportHeader(data ReportData) {
 					<p class="mt-1.5 max-w-3xl text-sm leading-relaxed text-muted-foreground">{ data.Report.Repository.Description }</p>
 				}
 				<div class="mt-3 flex flex-wrap items-center gap-1.5">
+					@badge.Badge(badge.Props{Variant: badge.VariantOutline, Class: "gap-1.5 font-semibold " + scoreTagClass(data.Report.Score)}) {
+						if data.Report.Score == 100 {
+							@icon.Trophy(icon.Props{Class: "size-3.5"})
+							<span>Perfect · 100/100</span>
+						} else {
+							@icon.Award(icon.Props{Class: "size-3.5"})
+							<span>{ data.Report.Grade } · { fmt.Sprint(data.Report.Score) }/100</span>
+						}
+					}
 					if data.Report.Repository != nil {
 						@badge.Badge(badge.Props{Variant: badge.VariantOutline, Class: "gap-1"}) {
 							@icon.Star(icon.Props{Class: "size-3"})
@@ -109,38 +121,59 @@ templ reportHeader(data ReportData) {
 templ scoreCard(data ReportData) {
 	@card.Card(card.Props{Class: "h-full"}) {
 		@card.Content(card.ContentProps{Class: "flex h-full flex-col p-5 sm:p-6"}) {
-			<div class="flex items-start gap-4">
-				<div class={ "flex size-20 shrink-0 flex-col items-center justify-center rounded-xl border", gradePanelClass(data.Report.Score) }>
-					<span class="text-4xl font-black leading-none text-foreground">{ data.Report.Grade }</span>
-					<span class="mt-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">grade</span>
+			<div class="flex items-start justify-between gap-4">
+				<div class="flex items-start gap-4">
+					<div class={ "flex size-20 shrink-0 flex-col items-center justify-center rounded-lg border", gradePanelClass(data.Report.Score) }>
+						<span class="text-4xl font-black leading-none text-foreground">{ data.Report.Grade }</span>
+						<span class="mt-1 text-sm font-medium uppercase tracking-wider text-muted-foreground">grade</span>
+					</div>
+					<div class="min-w-0">
+						<p class="text-sm font-medium text-muted-foreground">Overall score</p>
+						<p class="mt-0.5 flex items-baseline gap-1">
+							<span class="text-4xl font-bold tabular-nums tracking-tight text-foreground">{ data.Report.Score }</span>
+							<span class="text-sm text-muted-foreground">/ 100</span>
+						</p>
+						<p class="mt-2 text-sm leading-relaxed text-muted-foreground">{ gradeDescription(data.Report.Grade) }</p>
+						if data.PreviousScore != nil {
+							{{ delta := data.Report.Score - *data.PreviousScore }}
+							<p class={ "mt-1 text-sm font-medium", scoreDeltaClass(delta) }>{ scoreDeltaText(delta) }</p>
+						}
+					</div>
 				</div>
-				<div class="min-w-0">
-					<p class="text-sm font-medium text-muted-foreground">Overall score</p>
-					<p class="mt-0.5 flex items-baseline gap-1">
-						<span class="text-4xl font-bold tabular-nums tracking-tight text-foreground">{ data.Report.Score }</span>
-						<span class="text-sm text-muted-foreground">/ 100</span>
-					</p>
-					<p class="mt-2 text-sm leading-relaxed text-muted-foreground">{ gradeDescription(data.Report.Grade) }</p>
+				<div class="hidden shrink-0 sm:block">
+					@chart.Chart(chart.Props{
+						ID:          "score-distribution-chart",
+						Variant:     chart.VariantDoughnut,
+						Data:        checkDistributionChartData(data.Report.Counts),
+						ShowLegend:  false,
+						ShowXAxis:   false,
+						ShowYAxis:   false,
+						ShowXLabels: false,
+						ShowYLabels: false,
+						ShowXGrid:   false,
+						ShowYGrid:   false,
+						Class:       "size-24",
+					})
 				</div>
 			</div>
 			<div class="mt-5 grid grid-cols-3 divide-x border-t pt-4 text-center">
 				<div class="px-2 py-1">
 					<p class="text-xl font-semibold tabular-nums text-foreground">{ data.Report.Counts.Passed }</p>
-					<p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Passed</p>
+					<p class="text-sm font-medium uppercase tracking-wide text-muted-foreground">Passed</p>
 				</div>
 				<div class="px-2 py-1">
-					<p class="text-xl font-semibold tabular-nums text-destructive">{ data.Report.Counts.Failed }</p>
-					<p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Failed</p>
+					<p class={ "text-xl font-semibold tabular-nums", templ.KV("text-destructive", data.Report.Counts.Failed > 0) }>{ data.Report.Counts.Failed }</p>
+					<p class="text-sm font-medium uppercase tracking-wide text-muted-foreground">Failed</p>
 				</div>
 				<div class="px-2 py-1">
 					<p class="text-xl font-semibold tabular-nums text-muted-foreground">{ data.Report.Counts.Skipped }</p>
-					<p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Skipped</p>
+					<p class="text-sm font-medium uppercase tracking-wide text-muted-foreground">Skipped</p>
 				</div>
 			</div>
 			{{ errors := data.Report.Errors() }}
 			if len(errors) > 0 {
 				<div class="mt-5 border-t pt-4">
-					<p class="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+					<p class="flex items-center gap-1.5 text-sm font-medium uppercase tracking-wide text-muted-foreground">
 						@icon.TriangleAlert(icon.Props{Class: "size-3.5 text-destructive"})
 						Fix first · { len(errors) } { plural(len(errors), "error", "errors") }
 					</p>
@@ -160,7 +193,7 @@ templ scoreCard(data ReportData) {
 						}
 					</ul>
 					if len(errors) > 3 {
-						<p class="mt-2 text-xs text-muted-foreground">+ { len(errors) - 3 } more</p>
+						<p class="mt-2 text-sm text-muted-foreground">+ { len(errors) - 3 } more</p>
 					}
 				</div>
 			}
@@ -193,23 +226,85 @@ templ categoryCard(data ReportData) {
 							if category.Applicable {
 								<span class={ "text-sm font-semibold tabular-nums", scoreTextClass(category.Score) }>{ categoryScoreLabel(category) }<span class="font-normal text-muted-foreground">/100</span></span>
 							} else {
-								<span class="text-xs text-muted-foreground">n/a</span>
+								<span class="text-sm text-muted-foreground">n/a</span>
 							}
 						</div>
 						if category.Applicable {
 							@progress.Progress(progress.Props{
-								Max:   100,
-								Value: category.Score,
-								Size:  progress.SizeSm,
-								Class: "mt-1.5",
+								Max:      100,
+								Value:    category.Score,
+								Size:     progress.SizeSm,
+								Class:    "mt-1.5",
+								BarClass: "h-2 " + scoreBarClass(category.Score),
 							})
 						}
-						<p class="mt-1 text-[11px] text-muted-foreground">{ categoryCountsLabel(category) }</p>
+						<p class="mt-1 text-sm text-muted-foreground">{ categoryCountsLabel(category) }</p>
 					</a>
 				}
 			</div>
 		}
 	}
+}
+
+templ analyticsCard(data ReportData) {
+	<div class="grid gap-4 lg:grid-cols-2">
+		@card.Card(card.Props{}) {
+			@card.Header(card.HeaderProps{Class: "p-5 pb-2 sm:p-6 sm:pb-2"}) {
+				@card.Title() {
+					Category profile
+				}
+				@card.Description() {
+					Weighted score across all applicable categories (0–100).
+				}
+			}
+			@card.Content(card.ContentProps{Class: "p-5 pt-2 sm:p-6 sm:pt-2"}) {
+				@chart.Chart(chart.Props{
+					ID:          "category-radar-chart",
+					Variant:     chart.VariantRadar,
+					Data:        categoryRadarChartData(data.Report.Categories),
+					ShowLegend:  false,
+					ShowXAxis:   true,
+					ShowYAxis:   true,
+					ShowXLabels: true,
+					ShowYLabels: false,
+					ShowXGrid:   true,
+					ShowYGrid:   true,
+					YMin:        floatPtr(0),
+					YMax:        floatPtr(100),
+					BeginAtZero: chart.Bool(true),
+					Class:       "h-64 w-full",
+				})
+			}
+		}
+		@card.Card(card.Props{}) {
+			@card.Header(card.HeaderProps{Class: "p-5 pb-2 sm:p-6 sm:pb-2"}) {
+				@card.Title() {
+					Checks per category
+				}
+				@card.Description() {
+					Passed, failed, and skipped rules in each section.
+				}
+			}
+			@card.Content(card.ContentProps{Class: "p-5 pt-2 sm:p-6 sm:pt-2"}) {
+				@chart.Chart(chart.Props{
+					ID:          "category-breakdown-chart",
+					Variant:     chart.VariantBar,
+					Data:        categoryBreakdownChartData(data.Report),
+					Horizontal:  true,
+					Stacked:     true,
+					ShowLegend:  true,
+					ShowXAxis:   true,
+					ShowYAxis:   false,
+					ShowXLabels: true,
+					ShowYLabels: true,
+					ShowXGrid:   true,
+					ShowYGrid:   false,
+					BeginAtZero: chart.Bool(true),
+					Class:       "h-64 w-full",
+				})
+			}
+		}
+	</div>
 }
 
 templ checklist(data ReportData) {
@@ -219,9 +314,9 @@ templ checklist(data ReportData) {
 				<h2 id="checklist-heading" class="text-xl font-semibold tracking-tight sm:text-2xl">Checklist</h2>
 				<p class="mt-1 text-sm text-muted-foreground">Failed checks appear first. Expand any check for evidence, rationale, and a concrete fix.</p>
 			</div>
-			<p class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-medium text-muted-foreground">
+			<p class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-medium text-muted-foreground">
 				<span class="inline-flex items-center gap-1.5">
-					<span class="size-1.5 rounded-full bg-emerald-700 dark:bg-emerald-400" aria-hidden="true"></span>
+					<span class="size-1.5 rounded-full bg-success" aria-hidden="true"></span>
 					<span class="tabular-nums text-foreground">{ data.Report.Counts.Passed }</span> passed
 				</span>
 				<span class="inline-flex items-center gap-1.5">
@@ -240,7 +335,7 @@ templ checklist(data ReportData) {
 					<section id={ "category-" + string(category) } class="scroll-mt-20">
 						<div class="mb-2 flex flex-wrap items-center justify-between gap-2">
 							<h3 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{ rules.CategoryLabel(category) }</h3>
-							<span class="text-xs text-muted-foreground">{ categoryAnchorLabel(data, category) }</span>
+							<span class="text-sm text-muted-foreground">{ categoryAnchorLabel(data, category) }</span>
 						</div>
 						<div class="space-y-2">
 							for _, result := range data.Report.ResultsFor(category) {
@@ -266,8 +361,13 @@ templ resultRow(result rules.Result) {
 					@badge.Badge(badge.Props{Variant: badge.VariantOutline, Class: statusPillClass(result.Status)}) {
 						{ statusLabel(result.Status) }
 					}
+					if result.Status != rules.StatusPass {
+						@badge.Badge(badge.Props{Variant: badge.VariantOutline, Class: severityClass(result.EffectiveSeverity())}) {
+							{ severityLabel(result.EffectiveSeverity()) }
+						}
+					}
 				</div>
-				<p class="mt-1 text-xs text-muted-foreground">{ resultSubtitle(result) }</p>
+				<p class="mt-1 text-sm text-muted-foreground">{ resultSubtitle(result) }</p>
 			</div>
 			@icon.ChevronDown(icon.Props{Class: "mt-1 size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-180"})
 		</summary>
@@ -276,7 +376,7 @@ templ resultRow(result rules.Result) {
 			if len(result.Evidence) > 0 {
 				@card.Card(card.Props{Class: "mt-3 bg-muted/35 shadow-none"}) {
 					@card.Header(card.HeaderProps{Class: "p-3.5 pb-0"}) {
-						@card.Title(card.TitleProps{Class: "flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground"}) {
+						@card.Title(card.TitleProps{Class: "flex items-center gap-1.5 text-sm font-medium text-muted-foreground"}) {
 							@icon.Search(icon.Props{Class: "size-3.5"})
 							Evidence
 						}
@@ -295,8 +395,8 @@ templ resultRow(result rules.Result) {
 				<div class="mt-3 grid gap-2.5 sm:grid-cols-2">
 					@card.Card(card.Props{Class: "bg-muted/35 shadow-none"}) {
 						@card.Header(card.HeaderProps{Class: "p-3.5 pb-0"}) {
-							@card.Title(card.TitleProps{Class: "flex items-center gap-2 text-[13px] font-semibold text-foreground"}) {
-								@icon.Lightbulb(icon.Props{Class: "size-3.5 text-amber-700 dark:text-amber-400"})
+							@card.Title(card.TitleProps{Class: "flex items-center gap-2 text-sm font-semibold text-foreground"}) {
+								@icon.Lightbulb(icon.Props{Class: "size-3.5 text-warning"})
 								<span>Why it matters</span>
 							}
 						}
@@ -306,8 +406,8 @@ templ resultRow(result rules.Result) {
 					}
 					@card.Card(card.Props{Class: "bg-muted/35 shadow-none"}) {
 						@card.Header(card.HeaderProps{Class: "p-3.5 pb-0"}) {
-							@card.Title(card.TitleProps{Class: "flex items-center gap-2 text-[13px] font-semibold text-foreground"}) {
-								@icon.Wrench(icon.Props{Class: "size-3.5 text-emerald-700 dark:text-emerald-400"})
+							@card.Title(card.TitleProps{Class: "flex items-center gap-2 text-sm font-semibold text-foreground"}) {
+								@icon.Wrench(icon.Props{Class: "size-3.5 text-success"})
 								<span>How to fix</span>
 							}
 						}
@@ -331,33 +431,33 @@ templ resultStatusIcon(result rules.Result) {
 	}
 }
 
-templ exportCard(data ReportData) {
-	<div class="flex flex-col gap-4 rounded-xl border bg-card p-4 shadow-xs sm:flex-row sm:items-center sm:justify-between sm:p-5">
-		<div>
-			<h2 class="text-sm font-semibold">Take the report with you</h2>
-			<p class="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-				The Markdown export includes scores, statuses, evidence, rationale, and fixes.
-			</p>
-		</div>
-		<div class="flex flex-wrap items-center gap-2">
+templ reportActions(data ReportData) {
+	<div class="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+		<p class="text-sm text-muted-foreground">
+			Audited { formatDate(data.Report.GeneratedAt) }
+		</p>
+		<div class="flex items-center gap-2">
 			@copybutton.CopyButton(copybutton.Props{
 				TargetID: "report-markdown",
-				Label:    "Copy report as Markdown",
-				Class:    "border bg-background shadow-xs",
+				Label:    "Copy",
+				Class:    "h-8 border bg-background px-3 text-sm shadow-xs",
 			})
 			@button.Button(button.Props{
 				Variant: button.VariantOutline,
+				Size:    button.SizeSm,
 				Type:    button.TypeButton,
+				Class:   "h-8 px-3 text-sm",
 				Attributes: templ.Attributes{
 					"data-download-report": "true",
 					"data-target-id":       "report-markdown",
 					"data-filename":        data.Filename,
+					"title":                "Download the report as a Markdown file",
 				},
 			}) {
 				@icon.Download(icon.Props{Class: "size-4"})
-				Download .md
+				Download
 			}
 		</div>
+		<textarea id="report-markdown" class="sr-only" readonly aria-hidden="true" tabindex="-1">{ data.Markdown }</textarea>
 	</div>
-	<textarea id="report-markdown" class="sr-only" readonly aria-hidden="true" tabindex="-1">{ data.Markdown }</textarea>
 }

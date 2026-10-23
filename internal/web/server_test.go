@@ -74,7 +74,7 @@ func TestCheckHTMXReturnsReportAndRecordsHistory(t *testing.T) {
 		"Overall score",
 		"Category scores",
 		"Checklist",
-		"Copy report as Markdown",
+		"Copy",
 		`data-download-report="true"`,
 		"readmecheck-owner-demo.md",
 		"External links checked",
@@ -200,7 +200,7 @@ func TestReportRouteRendersAndSaves(t *testing.T) {
 		t.Fatalf("status = %d, want 200: %s", response.Code, response.Body.String())
 	}
 	body := response.Body.String()
-	for _, want := range []string{"owner/demo", "Check another repository", "Download .md"} {
+	for _, want := range []string{"owner/demo", "Check another repository", "Download"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("report page does not contain %q", want)
 		}

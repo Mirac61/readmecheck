@@ -162,8 +162,10 @@ func (s *Server) check(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	previousScore := s.previousScore(r.Context(), ref)
 	s.record(r.Context(), report)
 	data := views.NewReportData(report, external)
+	data.PreviousScore = previousScore
 	if isHTMX {
 		w.Header().Set("HX-Push-Url", reportPath(ref, external))
 		s.render(w, r, http.StatusOK, views.ReportResult(data))
@@ -190,8 +192,11 @@ func (s *Server) report(w http.ResponseWriter, r *http.Request) {
 		s.render(w, r, statusForError(err), views.Home(data))
 		return
 	}
+	previousScore := s.previousScore(r.Context(), ref)
 	s.record(r.Context(), report)
-	s.render(w, r, http.StatusOK, views.ReportPage(views.NewReportData(report, external)))
+	data := views.NewReportData(report, external)
+	data.PreviousScore = previousScore
+	s.render(w, r, http.StatusOK, views.ReportPage(data))
 }
 
 func (s *Server) historyPage(w http.ResponseWriter, r *http.Request) {
@@ -230,6 +235,25 @@ func (s *Server) analyze(ctx context.Context, ref github.RepositoryRef, external
 		LinkChecker:        s.linkChecker,
 		Now:                s.now,
 	}), nil
+}
+
+func (s *Server) previousScore(ctx context.Context, ref github.RepositoryRef) *int {
+	reader, ok := s.history.(interface {
+		Previous(ctx context.Context, owner, repo string) (store.Check, bool, error)
+	})
+	if !ok {
+		return nil
+	}
+	previous, found, err := reader.Previous(ctx, ref.Owner, ref.Repo)
+	if err != nil {
+		slog.Error("load previous check", "error", err, "repository", ref.FullName())
+		return nil
+	}
+	if !found {
+		return nil
+	}
+	score := previous.Score
+	return &score
 }
 
 func (s *Server) record(ctx context.Context, report rules.Report) {

@@ -8,6 +8,7 @@ import (
 	"github.com/a-h/templ"
 
 	"readmecheck/components/badge"
+	"readmecheck/components/chart"
 	"readmecheck/components/icon"
 	"readmecheck/internal/github"
 	"readmecheck/internal/rules"
@@ -27,6 +28,9 @@ type ReportData struct {
 	Markdown      string
 	Filename      string
 	ExternalLinks bool
+	// PreviousScore is the score of the last stored check for the same
+	// repository, when one is available. It powers the delta indicator.
+	PreviousScore *int
 }
 
 // NewReportData prepares the view model, including the Markdown export.
@@ -111,7 +115,7 @@ func statusLabel(status rules.Status) string {
 func statusIconClass(status rules.Status) string {
 	switch status {
 	case rules.StatusPass:
-		return "size-5 text-emerald-700 dark:text-emerald-400"
+		return "size-5 text-success"
 	case rules.StatusFail:
 		return "size-5 text-destructive"
 	default:
@@ -122,7 +126,7 @@ func statusIconClass(status rules.Status) string {
 func statusPillClass(status rules.Status) string {
 	switch status {
 	case rules.StatusPass:
-		return "border-emerald-700/20 text-emerald-700 dark:border-emerald-400/25 dark:text-emerald-400"
+		return "border-success/25 text-success"
 	case rules.StatusFail:
 		return "border-destructive/20 text-destructive"
 	default:
@@ -146,7 +150,7 @@ func severityClass(severity rules.Severity) string {
 	case rules.SeverityError:
 		return "border-destructive/25 text-destructive"
 	case rules.SeverityWarning:
-		return "border-amber-600/30 text-amber-700 dark:text-amber-400"
+		return "border-warning/30 text-warning"
 	default:
 		return "text-muted-foreground"
 	}
@@ -157,7 +161,7 @@ func severityDotClass(severity rules.Severity) string {
 	case rules.SeverityError:
 		return "bg-destructive"
 	case rules.SeverityWarning:
-		return "bg-amber-600 dark:bg-amber-400"
+		return "bg-warning"
 	default:
 		return "bg-primary"
 	}
@@ -166,16 +170,60 @@ func severityDotClass(severity rules.Severity) string {
 func scoreTextClass(score int) string {
 	switch {
 	case score >= 90:
-		return "text-emerald-700 dark:text-emerald-400"
+		return "text-success"
 	case score >= 70:
-		return "text-amber-700 dark:text-amber-400"
+		return "text-warning"
 	default:
 		return "text-destructive"
 	}
 }
 
+func scoreDeltaLabel(delta int) string {
+	switch {
+	case delta > 0:
+		return fmt.Sprintf("+%d", delta)
+	case delta < 0:
+		return fmt.Sprintf("%d", delta)
+	default:
+		return "0"
+	}
+}
+
+func scoreDeltaText(delta int) string {
+	switch {
+	case delta > 0:
+		return fmt.Sprintf("+%d points since the last check", delta)
+	case delta < 0:
+		return fmt.Sprintf("%d points since the last check", delta)
+	default:
+		return "No change since the last check"
+	}
+}
+
+func scoreDeltaClass(delta int) string {
+	switch {
+	case delta > 0:
+		return "text-success"
+	case delta < 0:
+		return "text-destructive"
+	default:
+		return "text-muted-foreground"
+	}
+}
+
 func gradePanelClass(score int) string {
-	return "bg-muted/50"
+	switch {
+	case score >= 90:
+		return "border-success/30 bg-success/10 text-success"
+	case score >= 80:
+		return "border-info/30 bg-info/10 text-info"
+	case score >= 70:
+		return "border-warning/30 bg-warning/10 text-warning"
+	case score >= 60:
+		return "border-caution/30 bg-caution/10 text-caution"
+	default:
+		return "border-destructive/25 bg-destructive/10 text-destructive"
+	}
 }
 
 func gradeDescription(grade string) string {
@@ -303,4 +351,142 @@ func statusBadgeVariant(status rules.Status) badge.Variant {
 	default:
 		return badge.VariantOutline
 	}
+}
+
+func checkDistributionChartData(counts rules.Counts) chart.Data {
+	return chart.Data{
+		Labels: []string{"Passed", "Failed", "Skipped"},
+		Datasets: []chart.Dataset{
+			{
+				Label:           "Checks",
+				Data:            []float64{float64(counts.Passed), float64(counts.Failed), float64(counts.Skipped)},
+				BackgroundColor: []string{"#4f9a74", "#cf6b6b", "#8d8d97"},
+				BorderColor:     []string{"#4f9a74", "#cf6b6b", "#8d8d97"},
+				BorderWidth:     1,
+			},
+		},
+	}
+}
+
+func categoryRadarChartData(categories []rules.CategoryScore) chart.Data {
+	labels := make([]string, 0, len(categories))
+	values := make([]float64, 0, len(categories))
+	for _, cat := range categories {
+		if !cat.Applicable {
+			continue
+		}
+		label := cat.Label
+		if label == "Trust & maintenance" {
+			label = "Trust"
+		}
+		labels = append(labels, label)
+		values = append(values, float64(cat.Score))
+	}
+	return chart.Data{
+		Labels: labels,
+		Datasets: []chart.Dataset{
+			{
+				Label:           "Category score",
+				Data:            values,
+				BackgroundColor: "rgba(113, 113, 122, 0.18)",
+				BorderColor:     "#52525b",
+				BorderWidth:     2,
+				Fill:            true,
+			},
+		},
+	}
+}
+
+func categoryBreakdownChartData(report rules.Report) chart.Data {
+	labels := make([]string, 0, len(report.Categories))
+	passed := make([]float64, 0, len(report.Categories))
+	failed := make([]float64, 0, len(report.Categories))
+	skipped := make([]float64, 0, len(report.Categories))
+	for _, cat := range report.Categories {
+		label := cat.Label
+		if label == "Trust & maintenance" {
+			label = "Trust"
+		}
+		labels = append(labels, label)
+		passed = append(passed, float64(cat.Passed))
+		failed = append(failed, float64(cat.Failed))
+		skippedCount := 0
+		for _, r := range report.ResultsFor(cat.Category) {
+			if r.Status == rules.StatusSkipped {
+				skippedCount++
+			}
+		}
+		skipped = append(skipped, float64(skippedCount))
+	}
+	return chart.Data{
+		Labels: labels,
+		Datasets: []chart.Dataset{
+			{
+				Label:           "Passed",
+				Data:            passed,
+				BackgroundColor: "#4f9a74",
+			},
+			{
+				Label:           "Failed",
+				Data:            failed,
+				BackgroundColor: "#cf6b6b",
+			},
+			{
+				Label:           "Skipped",
+				Data:            skipped,
+				BackgroundColor: "#8d8d97",
+			},
+		},
+	}
+}
+
+func floatPtr(v float64) *float64 {
+	return &v
+}
+
+// exampleRule returns catalog metadata for one rule so landing-page copy is
+// drawn from the same source as the audit itself.
+func exampleRule(id string) (rules.RuleSummary, bool) {
+	for _, group := range rules.Catalog() {
+		for _, rule := range group.Rules {
+			if rule.ID == id {
+				return rule, true
+			}
+		}
+	}
+	return rules.RuleSummary{}, false
+}
+
+// scoreBarClass colours a progress bar with the same natural tones as
+// scoreTextClass, so a perfect score reads as green at a glance.
+func scoreBarClass(score int) string {
+	switch {
+	case score >= 90:
+		return "bg-success"
+	case score >= 70:
+		return "bg-warning"
+	default:
+		return "bg-destructive"
+	}
+}
+
+func scoreTagClass(score int) string {
+	switch {
+	case score >= 90:
+		return "border-success/30 bg-success/10 text-success"
+	case score >= 70:
+		return "border-warning/30 bg-warning/10 text-warning"
+	default:
+		return "border-destructive/30 bg-destructive/10 text-destructive"
+	}
+}
+
+// dialogSizeClass sizes the feature dialogs. The rules dialog gets a fixed
+// height so it does not jump when switching between tabs with different
+// numbers of rules, and enough width for all seven tabs on one row.
+func dialogSizeClass(id string) string {
+	if id == "rules-dialog" {
+		return "h-[min(85vh,42rem)] sm:max-w-4xl"
+	}
+	return "sm:max-w-2xl"
 }

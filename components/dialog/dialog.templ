@@ -131,7 +131,8 @@ templ Content(props ...ContentProps) {
 				"rounded-lg",
 				"[&::backdrop]:transition-all [&::backdrop]:duration-200",
 				"data-[tui-dialog-open=false]:[&::backdrop]:bg-black/0",
-				"data-[tui-dialog-open=true]:[&::backdrop]:bg-black/50",
+				"data-[tui-dialog-open=true]:[&::backdrop]:bg-black/60",
+				"[&::backdrop]:backdrop-blur-[2px]",
 				"transition-all duration-200",
 				"data-[tui-dialog-open=false]:scale-95",
 				"data-[tui-dialog-open=true]:scale-100",
@@ -140,6 +141,8 @@ templ Content(props ...ContentProps) {
 				p.Class,
 			),
 		}
+		tabindex="-1"
+		autofocus
 		data-tui-dialog-content
 		data-tui-dialog-open={ utils.IfElse(open, "true", "false") }
 		data-tui-dialog-initial-open={ utils.IfElse(open, "true", "false") }
@@ -157,8 +160,8 @@ templ Content(props ...ContentProps) {
 						// Interactions
 						"transition-opacity hover:opacity-100",
 						// Focus states
-						"focus:outline-none focus:ring-2",
-						"focus:ring-ring focus:ring-offset-2",
+						"focus:outline-none focus-visible:ring-2",
+						"focus-visible:ring-ring focus-visible:ring-offset-2",
 						"ring-offset-background",
 						// Hover/Data states
 						"data-[tui-dialog-open=true]:bg-accent",
