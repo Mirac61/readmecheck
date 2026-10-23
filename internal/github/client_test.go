@@ -386,3 +386,139 @@ func TestHTTPErrorNotRateLimit(t *testing.T) {
 		t.Fatalf("error lacks path: %v", err)
 	}
 }
+
+func TestResolveReadmePath(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		files []string
+		want  string
+	}{
+		{
+			name:  "github folder wins",
+			files: []string{".github/README.md", "README.md", "docs/README.md"},
+			want:  ".github/README.md",
+		},
+		{
+			name:  "root before docs",
+			files: []string{"README.md", "docs/README.md"},
+			want:  "README.md",
+		},
+		{
+			name:  "docs fallback",
+			files: []string{"docs/README.md"},
+			want:  "docs/README.md",
+		},
+		{
+			name:  "other folder fallback",
+			files: []string{"packages/core/README.md"},
+			want:  "packages/core/README.md",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			files := make(map[string]bool, len(tt.files))
+			for _, file := range tt.files {
+				files[file] = true
+			}
+			if got := resolveReadmePath(files, "README.md"); got != tt.want {
+				t.Fatalf("resolveReadmePath = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSnapshotCacheEvictsOldestEntry(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
+	cache := newSnapshotCache(time.Hour, func() time.Time { return now })
+	cache.maxEntries = 2
+	cache.put("a", &Repository{FullName: "a"})
+	now = now.Add(time.Minute)
+	cache.put("b", &Repository{FullName: "b"})
+	now = now.Add(time.Minute)
+	cache.put("c", &Repository{FullName: "c"})
+	if cache.len() != 2 {
+		t.Fatalf("cache length = %d, want 2", cache.len())
+	}
+	if _, ok := cache.get("a"); ok {
+		t.Fatal("oldest entry was not evicted")
+	}
+	if _, ok := cache.get("c"); !ok {
+		t.Fatal("newest entry missing")
+	}
+}
+
+func TestClientConditionalRequestsReuseBodyOn304(t *testing.T) {
+	var full, notModified atomic.Int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/owner/repo", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("If-None-Match") == `"meta-1"` {
+			notModified.Add(1)
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		full.Add(1)
+		w.Header().Set("ETag", `"meta-1"`)
+		fmt.Fprint(w, `{"full_name":"owner/repo","default_branch":"main","description":"cached"}`)
+	})
+	mux.HandleFunc("/repos/owner/repo/readme", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("If-None-Match") == `"readme-1"` {
+			notModified.Add(1)
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		w.Header().Set("ETag", `"readme-1"`)
+		w.Header().Set("Content-Disposition", `inline; filename="README.rst"`)
+		fmt.Fprint(w, "Title\n=====\n")
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	// A zero TTL is replaced by the default, so a negative one disables the
+	// snapshot cache and forces the second Fetch to hit the API again.
+	client, err := NewClient(ClientOptions{BaseURL: server.URL, CacheTTL: -1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := RepositoryRef{Owner: "owner", Repo: "repo"}
+	for i := 0; i < 2; i++ {
+		repo, err := client.Fetch(context.Background(), ref)
+		if err != nil {
+			t.Fatalf("fetch %d: %v", i, err)
+		}
+		if repo.Description != "cached" {
+			t.Fatalf("fetch %d description = %q", i, repo.Description)
+		}
+		if repo.Readme == nil || repo.Readme.Name != "README.rst" || string(repo.Readme.Content) != "Title\n=====\n" {
+			t.Fatalf("fetch %d readme = %+v", i, repo.Readme)
+		}
+	}
+	if full.Load() != 1 {
+		t.Fatalf("full metadata responses = %d, want 1", full.Load())
+	}
+	if notModified.Load() != 2 {
+		t.Fatalf("304 responses = %d, want 2 (metadata and README)", notModified.Load())
+	}
+}
+
+func TestETagCacheBounds(t *testing.T) {
+	cache := newETagCache()
+	for i := 0; i < etagMaxEntries+10; i++ {
+		cache.store(fmt.Sprintf("u%d", i), `"e"`, "", []byte("body"))
+	}
+	if cache.len() != etagMaxEntries {
+		t.Fatalf("entries = %d, want %d", cache.len(), etagMaxEntries)
+	}
+	if _, ok := cache.lookup("u0"); ok {
+		t.Fatal("oldest entry should have been evicted")
+	}
+	cache.store("big", `"e"`, "", make([]byte, etagMaxBodyBytes+1))
+	if _, ok := cache.lookup("big"); ok {
+		t.Fatal("oversized body must not be stored")
+	}
+	cache.delete("u20")
+	if _, ok := cache.lookup("u20"); ok {
+		t.Fatal("deleted entry still present")
+	}
+}

@@ -11,17 +11,19 @@ type cacheEntry struct {
 }
 
 type snapshotCache struct {
-	mu      sync.RWMutex
-	entries map[string]cacheEntry
-	ttl     time.Duration
-	now     func() time.Time
+	mu         sync.RWMutex
+	entries    map[string]cacheEntry
+	ttl        time.Duration
+	maxEntries int
+	now        func() time.Time
 }
 
 func newSnapshotCache(ttl time.Duration, now func() time.Time) *snapshotCache {
 	return &snapshotCache{
-		entries: make(map[string]cacheEntry),
-		ttl:     ttl,
-		now:     now,
+		entries:    make(map[string]cacheEntry),
+		ttl:        ttl,
+		maxEntries: DefaultCacheMaxEntries,
+		now:        now,
 	}
 }
 
@@ -49,11 +51,38 @@ func (c *snapshotCache) put(key string, repository *Repository) {
 		return
 	}
 	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.maxEntries > 0 && len(c.entries) >= c.maxEntries {
+		c.evictLocked()
+	}
 	c.entries[key] = cacheEntry{
 		repository: repository,
 		expiresAt:  c.now().Add(c.ttl),
 	}
-	c.mu.Unlock()
+}
+
+// evictLocked drops expired entries first and then the entry that expires
+// soonest, so the cache stays bounded without an unbounded scan.
+func (c *snapshotCache) evictLocked() {
+	now := c.now()
+	for key, entry := range c.entries {
+		if !now.Before(entry.expiresAt) {
+			delete(c.entries, key)
+		}
+	}
+	if c.maxEntries <= 0 || len(c.entries) < c.maxEntries {
+		return
+	}
+	oldestKey := ""
+	var oldest time.Time
+	for key, entry := range c.entries {
+		if oldestKey == "" || entry.expiresAt.Before(oldest) {
+			oldestKey, oldest = key, entry.expiresAt
+		}
+	}
+	if oldestKey != "" {
+		delete(c.entries, oldestKey)
+	}
 }
 
 func (c *snapshotCache) len() int {

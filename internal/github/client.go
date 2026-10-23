@@ -1,6 +1,7 @@
 package github
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -18,8 +20,12 @@ import (
 const (
 	DefaultAPIBaseURL = "https://api.github.com"
 	DefaultCacheTTL   = 10 * time.Minute
-	defaultUserAgent  = "readmecheck/1.0"
-	maxAPIBodyBytes   = 5 << 20
+	// DefaultCacheMaxEntries bounds the in-memory snapshot cache. Each entry
+	// holds a README and a repository file tree, so unbounded growth would be
+	// noticeable on a small host.
+	DefaultCacheMaxEntries = 256
+	defaultUserAgent       = "readmecheck/1.0"
+	maxAPIBodyBytes        = 5 << 20
 )
 
 type ClientOptions struct {
@@ -37,6 +43,7 @@ type Client struct {
 	httpClient *http.Client
 	userAgent  string
 	cache      *snapshotCache
+	etags      *etagCache
 	now        func() time.Time
 }
 
@@ -75,6 +82,7 @@ func NewClient(opts ClientOptions) (*Client, error) {
 		httpClient: httpClient,
 		userAgent:  userAgent,
 		cache:      newSnapshotCache(ttl, now),
+		etags:      newETagCache(),
 		now:        now,
 	}, nil
 }
@@ -133,8 +141,6 @@ func (c *Client) fetch(ctx context.Context, ref RepositoryRef) (*Repository, err
 		wg            sync.WaitGroup
 		readme        *README
 		readmeErr     error
-		root          []ContentEntry
-		rootErr       error
 		workflows     []Workflow
 		workflowsErr  error
 		latestRelease *Release
@@ -144,14 +150,10 @@ func (c *Client) fetch(ctx context.Context, ref RepositoryRef) (*Repository, err
 		treeTruncated bool
 	)
 
-	wg.Add(5)
+	wg.Add(4)
 	go func() {
 		defer wg.Done()
 		readme, readmeErr = c.fetchReadme(ctx, ref, repository.DefaultBranch)
-	}()
-	go func() {
-		defer wg.Done()
-		root, rootErr = c.fetchRoot(ctx, ref, repository.DefaultBranch)
 	}()
 	go func() {
 		defer wg.Done()
@@ -181,11 +183,21 @@ func (c *Client) fetch(ctx context.Context, ref RepositoryRef) (*Repository, err
 		repository.ReadmeKnown = true
 	}
 
-	if rootErr == nil {
-		repository.Root = root
+	if treeErr == nil && !treeTruncated {
+		repository.Files = treeFiles
+		repository.TreeKnown = true
+		// The recursive tree already contains every path. Deriving the root
+		// listing from it saves the separate /contents request.
+		repository.Root = rootEntriesFromTree(treeFiles)
 		repository.RootKnown = true
-	} else if errors.Is(rootErr, ErrNotFound) {
-		repository.RootKnown = true
+	} else {
+		root, rootErr := c.fetchRoot(ctx, ref, repository.DefaultBranch)
+		if rootErr == nil {
+			repository.Root = root
+			repository.RootKnown = true
+		} else if errors.Is(rootErr, ErrNotFound) {
+			repository.RootKnown = true
+		}
 	}
 
 	if workflowsErr == nil {
@@ -195,11 +207,13 @@ func (c *Client) fetch(ctx context.Context, ref RepositoryRef) (*Repository, err
 	if releaseErr == nil {
 		repository.LatestRelease = latestRelease
 	}
-	if treeErr == nil && !treeTruncated {
-		repository.Files = treeFiles
-		repository.TreeKnown = true
-	}
 	if repository.Readme != nil {
+		if repository.Readme.Path == "" {
+			repository.Readme.Path = repository.Readme.Name
+		}
+		if repository.TreeKnown {
+			repository.Readme.Path = resolveReadmePath(repository.Files, repository.Readme.Name)
+		}
 		if repository.Files == nil {
 			repository.Files = make(map[string]bool)
 		}
@@ -262,25 +276,15 @@ func (c *Client) fetchReadme(ctx context.Context, ref RepositoryRef, branch stri
 	if branch != "" {
 		target += "?ref=" + url.QueryEscape(branch)
 	}
-	req, err := c.newRequest(ctx, target, "application/vnd.github.raw")
+	body, disposition, err := c.get(ctx, target, "application/vnd.github.raw")
 	if err != nil {
 		return nil, err
 	}
-	resp, err := c.do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	content, err := readLimited(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read README response: %w", err)
-	}
-	name := readmeFilename(resp.Header.Get("Content-Disposition"))
+	name := readmeFilename(disposition)
 	return &README{
 		Name:    name,
 		Path:    name,
-		Content: content,
+		Content: body,
 	}, nil
 }
 
@@ -363,21 +367,53 @@ func (c *Client) newRequest(ctx context.Context, target, accept string) (*http.R
 }
 
 func (c *Client) getJSON(ctx context.Context, target string, destination any) error {
-	req, err := c.newRequest(ctx, target, "application/vnd.github+json")
+	body, _, err := c.get(ctx, target, "application/vnd.github+json")
 	if err != nil {
 		return err
 	}
-	resp, err := c.do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	decoder := json.NewDecoder(io.LimitReader(resp.Body, maxAPIBodyBytes))
-	if err := decoder.Decode(destination); err != nil {
+	if err := json.NewDecoder(bytes.NewReader(body)).Decode(destination); err != nil {
 		return fmt.Errorf("decode GitHub response: %w", err)
 	}
 	return nil
+}
+
+// get performs a conditional GET. When GitHub answers 304 Not Modified the
+// previously stored body is reused; such responses do not count against the
+// primary rate limit. The second return value is the Content-Disposition
+// header, restored from the cache on a 304.
+func (c *Client) get(ctx context.Context, target, accept string) ([]byte, string, error) {
+	req, err := c.newRequest(ctx, target, accept)
+	if err != nil {
+		return nil, "", err
+	}
+	key := accept + " " + target
+	cached, hasCached := c.etags.lookup(key)
+	if hasCached {
+		req.Header.Set("If-None-Match", cached.etag)
+	}
+	resp, err := c.do(req)
+	if err != nil {
+		return nil, "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotModified {
+		if hasCached {
+			return cached.body, cached.meta, nil
+		}
+		return nil, "", fmt.Errorf("GitHub returned 304 for an unconditional request")
+	}
+	body, err := readLimited(resp.Body)
+	if err != nil {
+		return nil, "", fmt.Errorf("read GitHub response: %w", err)
+	}
+	disposition := resp.Header.Get("Content-Disposition")
+	if etag := resp.Header.Get("ETag"); etag != "" {
+		c.etags.store(key, etag, disposition, body)
+	} else if hasCached {
+		c.etags.delete(key)
+	}
+	return body, disposition, nil
 }
 
 func (c *Client) do(req *http.Request) (*http.Response, error) {
@@ -385,7 +421,7 @@ func (c *Client) do(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, fmt.Errorf("request GitHub API: %w", err)
 	}
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+	if (resp.StatusCode >= 200 && resp.StatusCode < 300) || resp.StatusCode == http.StatusNotModified {
 		return resp, nil
 	}
 	defer resp.Body.Close()
@@ -405,6 +441,33 @@ func readLimited(reader io.Reader) ([]byte, error) {
 	return content, nil
 }
 
+// rootEntriesFromTree derives the top-level directory listing from a recursive
+// git tree, replacing a second /contents request.
+func rootEntriesFromTree(files map[string]bool) []ContentEntry {
+	entries := make(map[string]ContentEntry)
+	for file := range files {
+		name, rest, nested := strings.Cut(file, "/")
+		if name == "" || name == ".git" {
+			continue
+		}
+		entryType := "file"
+		if nested && rest != "" {
+			entryType = "dir"
+		}
+		existing, exists := entries[name]
+		if exists && existing.Type == "dir" {
+			continue
+		}
+		entries[name] = ContentEntry{Name: name, Path: name, Type: entryType}
+	}
+	result := make([]ContentEntry, 0, len(entries))
+	for _, entry := range entries {
+		result = append(result, entry)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
+	return result
+}
+
 func readmeFilename(disposition string) string {
 	if disposition != "" {
 		if _, params, err := mime.ParseMediaType(disposition); err == nil {
@@ -414,4 +477,32 @@ func readmeFilename(disposition string) string {
 		}
 	}
 	return "README.md"
+}
+
+// resolveReadmePath finds the location GitHub used for a README. The raw
+// endpoint only exposes the base filename, so the recursive tree is used to
+// recover the directory. GitHub prefers .github/ over the root and docs/.
+func resolveReadmePath(files map[string]bool, name string) string {
+	if name == "" {
+		name = "README.md"
+	}
+	for _, candidate := range []string{".github/" + name, name, "docs/" + name} {
+		if files[candidate] {
+			return candidate
+		}
+	}
+	base := strings.ToLower(name)
+	best := ""
+	for file := range files {
+		if strings.ToLower(path.Base(file)) != base {
+			continue
+		}
+		if best == "" || len(file) < len(best) {
+			best = file
+		}
+	}
+	if best != "" {
+		return best
+	}
+	return name
 }
