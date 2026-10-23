@@ -62,12 +62,12 @@ An audit of [charmbracelet/bubbletea](https://github.com/charmbracelet/bubbletea
 
 ## Prerequisites
 
-- Go 1.27.3 or newer.
-- GNU Make.
+- Go 1.27.3 or newer: [download Go](https://go.dev/dl/).
+- GNU Make: [get GNU Make](https://www.gnu.org/software/make/). It is preinstalled on most Linux distributions and included with the Xcode command line tools on macOS.
 - A network connection to reach the GitHub API.
-- A GitHub token is optional, but raises the API rate limit from 60 to 5,000 requests per hour.
+- A GitHub token is optional, but raises the API rate limit from 60 to 5,000 requests per hour: [create a token](https://github.com/settings/tokens).
 
-The Tailwind CSS standalone binary and the templ CLI are used by the build tasks. Install the pinned toolchain once with:
+The [Tailwind CSS standalone binary](https://github.com/tailwindlabs/tailwindcss/releases), the [templ CLI](https://templ.guide/quick-start/installation), and [templUI](https://templui.io) are used by the build tasks. Install the pinned toolchain once with:
 
 ```bash
 make tools
