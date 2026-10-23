@@ -6,10 +6,18 @@ readmecheck is a local-first Go web application that audits GitHub READMEs again
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-go%20test%20.%2F...-green.svg)](#tests)
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/home-dark.png">
+    <img src="docs/screenshots/home-light.png" alt="readmecheck start page with a repository input, a toggle for external link checks, and three feature cards" width="900">
+  </picture>
+</p>
+
 ## Table of Contents
 
 - [Why readmecheck](#why-readmecheck)
 - [Features](#features)
+- [Screenshots](#screenshots)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
 - [Usage](#usage)
@@ -33,13 +41,24 @@ readmecheck turns those expectations into a documented checklist. Every rule has
 - English and German heading detection for installation, usage, requirements, contribution, and license sections.
 - Weighted overall score from 0 to 100 with an A–F grade and per-category scores.
 - Deterministic Markdown parsing through goldmark with GFM support.
-- Optional external link checking with bounded concurrency and request timeouts.
+- Optional external link checking with bounded concurrency and request timeouts. Links to `localhost` and private networks are recognized as local and skipped, not reported as dead.
 - Relative link and image verification against the repository's real file tree, resolved from the README's directory.
 - SQLite history with a latest-check-per-repository view and score deltas between runs.
 - Bounded in-memory caching with conditional (`ETag`) GitHub requests, private-address blocking in the link checker, and no telemetry.
 - Server-rendered templ UI with templUI components, htmx navigation, dark mode, and a responsive layout.
 - Copy-to-clipboard and downloadable Markdown reports.
 - No accounts, no telemetry, and no AI-generated judgments.
+
+## Screenshots
+
+An audit of [charmbracelet/bubbletea](https://github.com/charmbracelet/bubbletea): overall grade, category scores, and charts, with copy and download for the Markdown report at the top right. The report follows your system's light or dark theme.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/report-dark.png">
+    <img src="docs/screenshots/report-light.png" alt="readmecheck report for charmbracelet/bubbletea with a B grade, seven category score bars, a radar chart, and a stacked bar chart" width="900">
+  </picture>
+</p>
 
 ## Prerequisites
 
