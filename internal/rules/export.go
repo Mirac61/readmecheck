@@ -44,7 +44,7 @@ func ReportMarkdown(report Report) string {
 		builder.WriteString(strings.ReplaceAll(strings.TrimSpace(repository.Description), "\n", " "))
 		builder.WriteString("\n\n")
 	}
-	if repository != nil {
+	if repository != nil && !repository.Local {
 		builder.WriteString(fmt.Sprintf("- **Stars:** %d\n", repository.Stars))
 		if repository.License != nil {
 			builder.WriteString("- **License:** ")

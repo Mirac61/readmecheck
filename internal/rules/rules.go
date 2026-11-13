@@ -320,6 +320,9 @@ func checkRepoDescription(_ context.Context, input Input, _ Options) Result {
 	if input.Repository == nil {
 		return skipped("No repository snapshot is available.")
 	}
+	if input.Repository.Local {
+		return skipped("Repository metadata is unavailable for a local README; pass --repo to check it.")
+	}
 	if strings.TrimSpace(input.Repository.Description) == "" {
 		return failed("The GitHub repository description is empty.")
 	}
@@ -329,6 +332,9 @@ func checkRepoDescription(_ context.Context, input Input, _ Options) Result {
 func checkTopics(_ context.Context, input Input, _ Options) Result {
 	if input.Repository == nil {
 		return skipped("No repository snapshot is available.")
+	}
+	if input.Repository.Local {
+		return skipped("Repository metadata is unavailable for a local README; pass --repo to check it.")
 	}
 	if len(input.Repository.Topics) == 0 {
 		return failed("No repository topics are set.")
@@ -549,6 +555,9 @@ func checkNotArchived(_ context.Context, input Input, _ Options) Result {
 	if input.Repository == nil {
 		return skipped("No repository snapshot is available.")
 	}
+	if input.Repository.Local {
+		return skipped("Repository metadata is unavailable for a local README; pass --repo to check it.")
+	}
 	if input.Repository.Archived {
 		return failed("The repository is archived and read-only.")
 	}
@@ -558,6 +567,9 @@ func checkNotArchived(_ context.Context, input Input, _ Options) Result {
 func checkContributing(_ context.Context, input Input, _ Options) Result {
 	if input.Repository == nil {
 		return skipped("No repository snapshot is available.")
+	}
+	if input.Repository.Local {
+		return skipped("Repository metadata is unavailable for a local README; pass --repo to check it.")
 	}
 	result := Result{}
 	severity := SeverityInfo

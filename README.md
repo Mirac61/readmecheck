@@ -119,6 +119,45 @@ A report includes:
 
 Direct report URLs are stable while the server is running: `/report/{owner}/{repo}`. Add `?external=1` to include external link checks. Each analysis is saved to the SQLite history database; reloading an unchanged report within five minutes reuses the previous row. The History page shows the latest result per repository with a re-run link.
 
+### Command line and CI
+
+`readmecheck check` audits a README on disk and prints the Markdown report to stdout:
+
+```bash
+go run ./cmd/readmecheck check --readme README.md
+```
+
+| Flag | Default | Purpose |
+| --- | --- | --- |
+| `--readme` | `README.md` | README file to check. Run from the repository root so relative links resolve. |
+| `--repo` | `$GITHUB_REPOSITORY` | `owner/name` whose GitHub metadata (description, topics, license, workflows, file tree) is fetched with `$GITHUB_TOKEN`. Without it, those rules are reported as skipped and the check runs fully offline. |
+| `--external-links` | `false` | Also check that external links are reachable. |
+
+The exit code is `1` only when an error-level rule fails, `2` when readmecheck itself fails, and `0` otherwise; a low score alone does not fail the run. If `$GITHUB_STEP_SUMMARY` is set, the report is also appended to the job summary.
+
+In GitHub Actions, use the bundled action:
+
+```yaml
+name: README
+on:
+  push:
+    paths: [README.md]
+  pull_request:
+    paths: [README.md]
+
+jobs:
+  readmecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - uses: Mirac61/readmecheck@main
+        # with:
+        #   external-links: "true"
+```
+
 ## Configuration
 
 All configuration is provided through environment variables:
