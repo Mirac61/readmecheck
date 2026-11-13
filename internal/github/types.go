@@ -41,6 +41,10 @@ type Repository struct {
 
 	Files     map[string]bool
 	TreeKnown bool
+
+	// Local means the README was read from disk without GitHub metadata, so
+	// metadata rules report skipped instead of failing on empty values.
+	Local bool
 }
 
 type README struct {

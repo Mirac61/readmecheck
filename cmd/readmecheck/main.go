@@ -17,6 +17,10 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "check" {
+		os.Exit(runCheck(context.Background(), os.Args[2:], os.Stdout, os.Stderr))
+	}
+
 	addr := "localhost:8080"
 	if port := strings.TrimSpace(os.Getenv("PORT")); port != "" {
 		addr = "localhost:" + strings.TrimPrefix(port, ":")

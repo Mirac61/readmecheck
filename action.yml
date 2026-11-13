@@ -1,0 +1,62 @@
+name: readmecheck
+description: Audits your README against the readmecheck rules and writes the report to the job summary.
+author: Mirac61
+branding:
+  icon: book-open
+  color: blue
+
+inputs:
+  readme:
+    description: README file to check, relative to working-directory.
+    default: README.md
+  repo:
+    description: "owner/name for GitHub metadata (description, topics, license, workflows). Set to an empty string to skip those rules."
+    default: ${{ github.repository }}
+  external-links:
+    description: Also check that external links are reachable.
+    default: "false"
+  working-directory:
+    description: Directory to run in, usually the repository root.
+    default: .
+  token:
+    description: Token for the GitHub API calls behind the metadata rules.
+    default: ${{ github.token }}
+
+outputs:
+  exit-code:
+    description: "0 no error-level rule failed, 1 at least one did, 2 readmecheck failed."
+    value: ${{ steps.run.outputs.exit-code }}
+
+runs:
+  using: composite
+  steps:
+    - name: Build readmecheck
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      env:
+        # The workflow's own settings (-mod=vendor, a go.work) are for its code, not for readmecheck.
+        GOFLAGS: ""
+        GOWORK: "off"
+      run: |
+        if ! command -v go >/dev/null; then
+          echo "::error title=readmecheck::Go is not installed; add actions/setup-go before this step."
+          exit 2
+        fi
+        go build -trimpath -o "$RUNNER_TEMP/readmecheck" ./cmd/readmecheck
+
+    - name: Run readmecheck
+      id: run
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        README: ${{ inputs.readme }}
+        REPO: ${{ inputs.repo }}
+        EXTERNAL_LINKS: ${{ inputs.external-links }}
+        GITHUB_TOKEN: ${{ inputs.token }}
+      run: |
+        set +e
+        "$RUNNER_TEMP/readmecheck" check --readme "$README" --repo "$REPO" --external-links="$EXTERNAL_LINKS"
+        code=$?
+        set -e
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        exit "$code"
